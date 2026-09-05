@@ -7,6 +7,7 @@ import qs.Ui
 import "Metar.js" as Metar
 import "Category.js" as Category
 import "Format.js" as Format
+import "Taf.js" as Taf
 import "Theme.js" as Theme
 
 // Omarchy Pilot — aviation weather for one aerodrome.
@@ -129,6 +130,43 @@ Panel {
   }
 
   readonly property var rows: report ? Format.rows(report, category, rowSlots) : []
+
+  // Resolved separately from `category`, because an UNKN observation still
+  // leaves a perfectly good forecast to band.
+  readonly property string ruleSetId: {
+    if (ruleSetOverride !== "auto") return ruleSetOverride
+    var rules = Category.ruleSetForCountry(country)
+    return rules ? rules.id : ""
+  }
+
+  readonly property var taf: rawTaf ? Taf.parse(rawTaf, { now: new Date() }) : null
+
+  readonly property var tafHours: {
+    tick
+    if (!taf || !ruleSetId) return []
+    return Taf.timeline(taf, { ruleSet: ruleSetId, hours: 24 })
+  }
+
+  readonly property var tafLines: taf ? Taf.rawLines(taf) : []
+
+  // The hour block the clock is in, so the strip can show where "now" falls.
+  readonly property int nowIndex: {
+    tick
+    if (tafHours.length === 0) return -1
+    var ms = new Date().getTime()
+    for (var i = 0; i < tafHours.length; i++) {
+      if (ms < tafHours[i].time.getTime() + 3600000) return ms >= tafHours[i].time.getTime() ? i : -1
+    }
+    return -1
+  }
+
+  // The pure modules take their collaborators by injection rather than by
+  // import, so they stay loadable under node.
+  Component.onCompleted: {
+    Category.useCeilingInfo(Metar.ceilingInfo)
+    Taf.useMetar(Metar)
+    Taf.useCategory(Category)
+  }
 
   // The theme directory is destroyed and replaced by omarchy-theme-set, so a
   // watch on colors.toml dies on the first switch. theme.name is rewritten in
@@ -566,42 +604,161 @@ Panel {
             }
           }
 
-          // -------------------------------------------------- raw TAF
-          //
-          // Decoding and the hour-by-hour timeline come next; until then the
-          // raw forecast is shown with one change group per line, which is
-          // how a pilot reads it anyway.
+          // -------------------------------------------------- the TAF
 
           Column {
             width: parent.width
-            spacing: Style.space(4)
+            spacing: Style.space(6)
             visible: root.rawTaf !== ""
 
-            Text {
-              text: "TAF"
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              font.letterSpacing: 1
+            Row {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Text {
+                text: "TAF"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.letterSpacing: 1
+              }
+
+              Text {
+                visible: root.taf !== null && root.taf.validFrom !== null
+                text: root.taf && root.taf.validFrom
+                  ? Format.zuluTime(root.taf.validFrom) + " → " + Format.zuluTime(root.taf.validTo)
+                  : ""
+                color: root.fainter
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+              }
             }
 
+            // The forecast strip: one block per hour, coloured by the band
+            // that hour is forecast to be in. This answers "when does it go
+            // bad" in one glance, which no amount of raw text does.
+            Item {
+              id: strip
+              width: parent.width
+              height: Style.space(26)
+              visible: root.tafHours.length > 0
+
+              readonly property int count: root.tafHours.length
+              readonly property real gap: 1
+              readonly property real blockWidth: count > 0
+                ? (width - gap * (count - 1)) / count : 0
+
+              Row {
+                spacing: strip.gap
+
+                Repeater {
+                  model: root.tafHours
+
+                  Rectangle {
+                    width: strip.blockWidth
+                    height: Style.space(18)
+                    color: modelData.band ? root.slotColor(modelData.band.slot) : root.fainter
+                    // A BECMG window is a period where either the old or the
+                    // new conditions may be found. The block already shows
+                    // the worse of the two; this dims it to say "in flux".
+                    opacity: modelData.changing ? 0.72 : 1.0
+
+                    // A temporary deterioration is a separate channel from
+                    // the forecast band, so it gets its own stripe rather
+                    // than recolouring the block. Painting a TEMPO as the
+                    // forecast would overstate it.
+                    Rectangle {
+                      visible: modelData.temporary !== null
+                      anchors.left: parent.left
+                      anchors.right: parent.right
+                      anchors.bottom: parent.bottom
+                      height: Style.space(5)
+                      color: modelData.temporary
+                        ? root.slotColor(modelData.temporary.band.slot) : "transparent"
+                    }
+                  }
+                }
+              }
+
+              // Where the clock falls in the forecast.
+              Rectangle {
+                visible: root.nowIndex >= 0
+                x: root.nowIndex * (strip.blockWidth + strip.gap)
+                width: Math.max(1, strip.blockWidth)
+                height: Style.space(18)
+                color: "transparent"
+                border.width: 1
+                border.color: root.foreground
+              }
+
+              // Hour ticks, every six hours in UTC.
+              Row {
+                anchors.bottom: parent.bottom
+                spacing: strip.gap
+
+                Repeater {
+                  model: root.tafHours
+
+                  Item {
+                    width: strip.blockWidth
+                    height: Style.space(8)
+
+                    Text {
+                      visible: modelData.time.getUTCHours() % 6 === 0
+                      text: Format.zuluTime(modelData.time).slice(0, 2)
+                      color: root.fainter
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                  }
+                }
+              }
+            }
+
+            // Without this the stripe is decoration. With it, it is data.
+            Text {
+              visible: root.tafHours.length > 0
+                && root.tafHours.some(function (h) { return h.temporary !== null })
+              width: parent.width
+              text: "Lower bar: temporary deterioration possible"
+              color: root.fainter
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+            }
+
+            // The raw forecast, one change group per line, which is how it
+            // is read.
             Rectangle {
               width: parent.width
               radius: Style.cornerRadius > 0 ? Style.cornerRadius : Style.space(3)
               color: Util.alpha(root.foreground, 0.06)
               border.width: 1
               border.color: Util.alpha(root.foreground, 0.14)
-              implicitHeight: tafText.implicitHeight + Style.space(16)
+              implicitHeight: tafColumn.implicitHeight + Style.space(16)
 
-              Text {
-                id: tafText
-                anchors.fill: parent
+              Column {
+                id: tafColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.margins: Style.space(8)
-                text: root.rawTaf
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                wrapMode: Text.WordWrap
+                spacing: Style.space(2)
+
+                Repeater {
+                  model: root.tafLines.length > 0 ? root.tafLines : [root.rawTaf]
+
+                  Text {
+                    width: tafColumn.width
+                    text: modelData
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.bodySmall
+                    // WordWrap, never WrapAnywhere: a raw report is read
+                    // token by token.
+                    wrapMode: Text.WordWrap
+                  }
+                }
               }
             }
           }

@@ -132,11 +132,12 @@ with no usage policy.
 ```
 omarchy-pilot/
 ├── manifest.json      Plugin manifest. Must stay at the root
-├── Panel.qml          Bar pill, popup, fetch, timers
+├── Panel.qml          Bar pill, popup, fetch, timers  DONE
 ├── Metar.js           METAR decoder            DONE
 ├── Theme.js           Palette resolution       DONE
 ├── Category.js        Flight category rules    DONE
-├── Taf.js             TAF decoder and timeline TO DO
+├── Taf.js             TAF decoder and timeline DONE
+├── Format.js          Display strings          DONE
 ├── dev/sync.sh        Development install
 ├── docs/PLAN.md       This file
 └── tests/             node tests, no framework
@@ -301,6 +302,28 @@ the category row survives.
 
 ---
 
+## 6a. Resolving a TAF into hours
+
+A TAF is a baseline plus amendments. Three group types behave differently,
+and conflating them gives a wrong forecast that looks right.
+
+| Group | Effect on the baseline | Shown as |
+|---|---|---|
+| `FM` | Replaces it entirely, from that minute | The block colour changes |
+| `BECMG` | Replaces only the elements it names, after the window ends | Block colour changes; the window is dimmed |
+| `TEMPO` / `PROB` | **Never** replaces it | A separate lower bar on the block |
+
+Two decisions worth keeping:
+
+- **Inside a BECMG window the worse of the two is shown**, because either may
+  be found there. The block is dimmed to say the conditions are in flux.
+- **A temporary deterioration gets its own channel**, never the block colour.
+  Painting a TEMPO as the forecast would overstate it; hiding it would
+  understate it. A TEMPO no worse than the forecast is not drawn at all.
+
+Verified against 38 live TAFs from six continents: no failures and no empty
+timelines.
+
 ## 7. Theming
 
 Everything binds to `Color.*` and `Style.*`. Those are singleton properties
@@ -388,9 +411,17 @@ and a text field inside the panel, saved with
 `bar.shell.updateEntryInline(moduleName, entry)`. The value lands in
 `shell.json` beside the widget id, which is how the clock plugin does it.
 
-**Nearest aerodrome** is resolved once, with a bounding-box query against
-`/api/data/stationinfo`, then written into the config as a concrete ICAO
-code. No station database is bundled and no lookup repeats.
+**Nearest aerodrome is NOT built.** There is no geolocation of any kind in
+the plugin: no coordinates, no IP lookup, no bounding-box query. The only way
+to choose an aerodrome today is to type its code. `stationinfo` is used only
+to look up the country and name **of the code you gave**, so the rule set can
+be chosen.
+
+The design, for when it is built: read the position the weather plugin
+already stores in `~/.local/state/omarchy/settings/weather.json`, query
+`stationinfo?bbox=` around it, keep only stations whose `siteType` contains
+`METAR`, take the least great-circle distance, then **write the winning ICAO
+into the config** so the lookup never repeats.
 
 ---
 
@@ -419,11 +450,11 @@ All are handled and tested.
 | 1 | `Metar.js` and tests | **Done.** 20 tests. 40 live aerodromes, no unknown groups |
 | 2 | `Theme.js` and tests | **Done.** 14 tests. All 22 installed themes swept |
 | 3 | `Category.js` and tests | **Done.** 18 tests. 28 of 28 agree with NOAA `fltCat` |
-| 4 | Skeleton plugin, pill on the bar | **Next** |
-| 5 | Panel decoded rows and raw box | To do |
-| 6 | `Taf.js` and tests | To do |
-| 7 | Timeline strip | To do |
-| 8 | ICAO field, nearest lookup, fallbacks | To do |
+| 4 | Skeleton plugin, pill on the bar | **Done.** Verified live at EETN, LOWG and EDDV |
+| 5 | Panel decoded rows and raw box | **Done.** 11 Format.js tests |
+| 6 | `Taf.js` and tests | **Done.** 20 tests. 38 live TAFs, no failures |
+| 7 | Timeline strip | **Done.** One block per hour, TEMPO on its own channel |
+| 8 | ICAO field | **Done.** Nearest lookup and the fallback sources are **not** built |
 | 9 | README and first push | To do. `tests/all.sh` is written |
 
 Phases 1, 2, 3 and 6 need no running shell.
