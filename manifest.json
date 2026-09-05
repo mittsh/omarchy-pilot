@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "pilot.metar",
+  "name": "Omarchy Pilot",
+  "version": "0.1.0",
+  "author": "Micha Mazaheri",
+  "description": "Aviation weather: METAR, TAF and flight category for one aerodrome",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Aviation Weather",
+    "description": "METAR, TAF and flight category for one aerodrome",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "center"
+  }
+}

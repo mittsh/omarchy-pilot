@@ -1,0 +1,6 @@
+# Runtime and editor noise. The plugin itself has no build step.
+*.bak
+*.bak.*
+.DS_Store
+node_modules/
+tests/tmp/
