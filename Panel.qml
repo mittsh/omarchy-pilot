@@ -40,6 +40,14 @@ Panel {
   // "auto" follows the aerodrome's country. "sera" or "faa" forces one.
   readonly property string ruleSetOverride: String(root.setting("rules", "auto")).toLowerCase()
 
+  // "icao" (default), "metric" or "us". Only the decoded rows follow it; the
+  // raw report is always quoted verbatim.
+  readonly property string unitSet: String(root.setting("units", "icao")).toLowerCase()
+
+  // "vmc" (default) prints the terms European regulation uses. "vfr" prints
+  // what most pilots say. The thresholds are identical either way.
+  readonly property string labelStyle: String(root.setting("labels", "vmc")).toLowerCase()
+
   // ---------------------------------------------------------------- state
 
   property string rawMetar: ""
@@ -66,6 +74,7 @@ Panel {
     return Category.categorize(report, {
       country: root.country,
       ruleSet: root.ruleSetOverride === "auto" ? "" : root.ruleSetOverride,
+      labels: root.labelStyle,
       now: new Date()
     })
   }
@@ -144,7 +153,7 @@ Panel {
     return { visibility: vis ? vis.slot : null, ceiling: ceil ? ceil.slot : null }
   }
 
-  readonly property var rows: report ? Format.rows(report, category, rowSlots) : []
+  readonly property var rows: report ? Format.rows(report, category, rowSlots, unitSet) : []
 
   // Resolved separately from `category`, because an UNKN observation still
   // leaves a perfectly good forecast to band.
@@ -159,7 +168,7 @@ Panel {
   readonly property var tafHours: {
     tick
     if (!taf || !ruleSetId) return []
-    return Taf.timeline(taf, { ruleSet: ruleSetId, hours: 24 })
+    return Taf.timeline(taf, { ruleSet: ruleSetId, labels: labelStyle, hours: 24 })
   }
 
   readonly property var tafLines: taf ? Taf.rawLines(taf) : []
@@ -909,6 +918,7 @@ Panel {
                 var source = Sources.list()[root.sourceIndex]
                 // Naming the source only when it is a fallback keeps the
                 // normal case quiet but makes a degraded one obvious.
+                parts.push(Format.unitsFor(root.unitSet).name + " units")
                 if (root.sourceIndex > 0) parts.push("via " + source.name)
                 if (source.attribution) parts.push(source.attribution)
                 return parts.join(" · ")

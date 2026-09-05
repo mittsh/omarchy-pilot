@@ -186,6 +186,55 @@ test("the rule set can be forced, ignoring the country", () => {
   assert.equal(forced.text, "IFR", "the same weather SERA calls SVFR")
 })
 
+// --------------------------------------------------------- label styles
+
+test("VMC is the default wording, and VFR is the alternative", () => {
+  const raw = "EETN 050950Z 09004KT 9999 SCT030 10/08 Q1013"
+  const report = M.parse(raw, { now: NOW })
+  assert.equal(C.categorize(report, { country: "EE", now: NOW }).text, "VMC")
+  assert.equal(C.categorize(report, { country: "EE", now: NOW, labels: "vmc" }).text, "VMC")
+  assert.equal(C.categorize(report, { country: "EE", now: NOW, labels: "vfr" }).text, "VFR")
+})
+
+test("the label style changes only the wording, never the band", () => {
+  const cases = [
+    ["EETN 050950Z 09004KT 9999 SCT030 10/08 Q1013", "vmc", "VMC", "VFR"],
+    ["EETN 050950Z 09004KT 4000 BKN010 10/08 Q1013", "svfr", "SVFR", "SVFR"],
+    ["EETN 050950Z 09004KT 0800 FG OVC004 10/08 Q1013", "imc", "IMC", "IFR"]
+  ]
+  for (const [raw, key, plain, alt] of cases) {
+    const report = M.parse(raw, { now: NOW })
+    const a = C.categorize(report, { country: "EE", now: NOW })
+    const b = C.categorize(report, { country: "EE", now: NOW, labels: "vfr" })
+    assert.equal(a.key, key)
+    assert.equal(b.key, key, "the band must not move")
+    assert.equal(a.slot, b.slot, "the colour must not move")
+    assert.equal(a.ceilingFt, b.ceilingFt)
+    assert.equal(a.text, plain)
+    assert.equal(b.text, alt)
+  }
+})
+
+test("the FAA bands read the same under either style", () => {
+  // VFR, MVFR, IFR and LIFR are already the spoken terms.
+  for (const raw of [
+    "KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982",
+    "KJFK 050951Z 02005KT 10SM BKN020 22/16 A2982",
+    "KJFK 050951Z 02005KT 10SM BKN004 22/16 A2982"
+  ]) {
+    const report = M.parse(raw, { now: NOW })
+    assert.equal(
+      C.categorize(report, { country: "US", now: NOW }).text,
+      C.categorize(report, { country: "US", now: NOW, labels: "vfr" }).text)
+  }
+})
+
+test("an unrecognised label style falls back to the default", () => {
+  const report = M.parse("EETN 050950Z 09004KT 9999 SCT030 10/08 Q1013", { now: NOW })
+  assert.equal(C.categorize(report, { country: "EE", now: NOW, labels: "nonsense" }).text, "VMC")
+  assert.equal(C.categorize(report, { country: "EE", now: NOW, labels: null }).text, "VMC")
+})
+
 // ---------------------------------------------------- per-field colouring
 
 test("each value can be banded on its own, for the row colours", () => {

@@ -349,7 +349,7 @@ function bandOf(conditions, options) {
     visibility: conditions.visibility,
     ceiling: ceiling,
     clouds: conditions.clouds || []
-  }, { ruleSet: opts.ruleSet, country: opts.country })
+  }, { ruleSet: opts.ruleSet, country: opts.country, labels: opts.labels })
 
   if (!result) return null
 

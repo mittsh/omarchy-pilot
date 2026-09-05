@@ -472,6 +472,47 @@ every one of these is a real case the table gets right:
 Regenerate monthly. It needs a network connection and about 13 MB of
 download.
 
+## 8b. Wording and units
+
+Two presentation settings. Neither changes a threshold or a band — only how
+the same answer is printed.
+
+**`labels`** picks the wording of the European bands: `vmc` (default) prints
+VMC / SVFR / IMC, the terms the regulation uses; `vfr` prints VFR / SVFR /
+IFR, what most pilots say. The FAA bands read the same under both.
+
+**`units`** picks one of three presets. Only the decoded rows follow it; the
+raw report is always quoted verbatim.
+
+| Preset | Wind | Visibility | Pressure | Temperature | Cloud height |
+|---|---|---|---|---|---|
+| `icao` (default) | kt | km | hPa | °C | ft |
+| `metric` | m/s | km | hPa | °C | ft |
+| `us` | kt | sm | inHg | °C | ft |
+
+Research settled the third one, which was first proposed with cloud height in
+metres. ICAO Annex 5 Table 3-4 does make the metre primary for height, so the
+proposal looked right — but **no METAR anywhere encodes cloud that way.** The
+code form carries a `KT`/`MPS` indicator for wind and has no metric option at
+all for the cloud group, and all 25 live stations checked — Russia, China,
+Mongolia and Kazakhstan included — send hundreds of feet. Metres for cloud
+base exist only in Russian domestic minima (ВНГО), a different document from
+the METAR. Showing them would invent a number no pilot reads off a report.
+
+So `metric` differs from `icao` in exactly one field, the wind. That is a
+real difference: Amendment 17 (2010) made m/s the Annex 5 primary for wind
+speed specifically, airspeed kept km/h, and the `MPS` suffix is live in
+Russian, Chinese, Mongolian and Kazakh reports. It is not a former-Soviet
+pattern — Azerbaijan, Georgia and Armenia all report knots.
+
+Two naming notes, so the text never oversells:
+
+- `icao` is the international **convention**, not strict SI. The knot and the
+  foot are Annex 5's permitted alternatives, and Table 4-1 sets no
+  termination date for either.
+- `us` is a national **deviation** under Convention Article 38. Statute miles
+  and inches of mercury appear nowhere in Annex 5's operative tables.
+
 ## 9. Format traps
 
 Each of these fails **silently**. The report still renders; it just lies.
@@ -503,6 +544,7 @@ All are handled and tested.
 | 7 | Timeline strip | **Done.** One block per hour, TEMPO on its own channel |
 | 8 | ICAO field, nearest lookup, fallbacks | **Done.** All three live-verified |
 | 9 | README | **Done.** First push still to do |
+| 10 | Wording and unit presets | **Done.** Live-verified in all three |
 
 Phases 1, 2, 3 and 6 need no running shell.
 

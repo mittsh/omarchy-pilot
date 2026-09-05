@@ -9,6 +9,59 @@
 // "Wind speed: 4 (knots)". Where they have a good string we use theirs
 // verbatim — "10 km+", "None", "310° (270-360°)".
 
+// ------------------------------------------------------------- unit sets
+//
+// Three presets. The raw METAR is never converted — it is quoted verbatim,
+// because a pilot reads raw. Only the decoded rows follow the preset.
+//
+// Temperature is Celsius in all three. Aviation has no Fahrenheit convention;
+// US METARs report Celsius too and only convert for public display.
+
+// The order they are offered in, best default first.
+var UNIT_ORDER = ["icao", "metric", "us"]
+
+var UNIT_SETS = {
+  // The default, and what the overwhelming majority of states report. The
+  // knot and the foot are Annex 5's permitted alternatives, and Table 4-1
+  // sets no termination date for either — 45 years of "temporary" and
+  // counting. This is the international convention, not strict SI.
+  icao: {
+    id: "icao", name: "ICAO",
+    wind: "kt", visibility: "km", pressure: "hPa", temperature: "C", altitude: "ft"
+  },
+  // The SI primaries, and closer to the letter of Annex 5 than the set above.
+  // Amendment 17 (2010) replaced km/h with m/s as the primary for WIND speed
+  // specifically; airspeed and ground speed kept km/h.
+  //
+  // Cloud height stays in feet, deliberately. Annex 5 makes the metre primary
+  // for height, but no METAR anywhere encodes cloud that way: the code form
+  // has a KT/MPS indicator for wind and no metric option at all for the cloud
+  // group. Every m/s-reporting state checked — Russia, China, Mongolia,
+  // Kazakhstan — still sends hundreds of feet. Metres for cloud base exist
+  // only in Russian domestic minima, a different document from the METAR.
+  metric: {
+    id: "metric", name: "Metric",
+    wind: "mps", visibility: "km", pressure: "hPa", temperature: "C", altitude: "ft"
+  },
+  // A national deviation, filed under Convention Article 38, rather than an
+  // ICAO alternative: statute miles and inches of mercury appear nowhere in
+  // Annex 5's operative tables.
+  us: {
+    id: "us", name: "US",
+    wind: "kt", visibility: "sm", pressure: "inHg", temperature: "C", altitude: "ft"
+  }
+}
+
+var KT_PER_MPS = 1.94384
+var METRES_PER_STATUTE_MILE = 1609.344
+var METRES_PER_FOOT = 0.3048
+
+function unitsFor(name) {
+  return UNIT_SETS[String(name || "").toLowerCase()] || UNIT_SETS.icao
+}
+
+function unitNames() { return UNIT_ORDER.slice() }
+
 var COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 
@@ -40,13 +93,29 @@ function windArrow(degrees) {
 
 // -------------------------------------------------------------------- wind
 
-function wind(report) {
+// Metar.js normalises every wind to knots, whatever the report said, so this
+// is the only place the display unit is decided.
+function windSpeed(knots, units) {
+  if (knots === null || knots === undefined) return null
+  if (unitsFor(units.id || units).wind === "mps") return Math.round(knots / KT_PER_MPS)
+  return Math.round(knots)
+}
+
+function windUnitLabel(units) {
+  return unitsFor(units.id || units).wind === "mps" ? "m/s" : "kt"
+}
+
+function wind(report, unitSet) {
+  var units = unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet)
   var w = report && report.wind
   if (!w) return "—"
   if (w.calm) return "Calm"
 
-  var speed = w.speedKt === null ? "—" : w.speedKt + " kt"
-  if (w.gustKt !== null && w.gustKt !== undefined) speed += " gusting " + w.gustKt
+  var label = windUnitLabel(units)
+  var value = windSpeed(w.speedKt, units)
+  var speed = value === null ? "—" : value + " " + label
+  var gust = windSpeed(w.gustKt, units)
+  if (gust !== null) speed += " gusting " + gust
 
   if (w.variable) return "Variable " + speed
   if (w.direction === null) return speed
@@ -60,25 +129,31 @@ function wind(report) {
 
 // -------------------------------------------------------------- visibility
 
-// Shown in the unit the station reported, because converting is what makes
-// two tools disagree about the same weather. A European 9999 is "10 km+",
-// not "6+ sm".
-function visibility(report) {
+// Converted to the chosen preset. The raw METAR above it is never touched,
+// so the reported figure is always one line away if the conversion looks
+// surprising.
+function visibility(report, unitSet) {
+  var units = unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet)
   var v = report && report.visibility
   if (!v) return "—"
   if (v.cavok) return "CAVOK"
 
-  if (v.unitReported === "SM") {
-    var miles = v.metres / 1609.344
-    var text = miles >= 1 ? String(Math.round(miles)) : fraction(miles)
-    if (v.atLeast) return "over " + text + " sm"
-    if (v.atMost) return "under " + text + " sm"
-    return text + " sm"
+  var metres = v.metres
+  if (metres === null || metres === undefined) return "—"
+
+  if (units.visibility === "sm") {
+    var miles = metres / METRES_PER_STATUTE_MILE
+    // "9999" means 10 km or more, which is 6.2 sm or more. Both conventions
+    // round that to their own familiar figure rather than showing 6.2.
+    if (v.atLeast) return Math.floor(miles) + " sm+"
+    if (v.atMost) return "under " + fraction(miles) + " sm"
+    return (miles >= 1 ? String(Math.round(miles)) : fraction(miles)) + " sm"
   }
 
-  if (v.atLeast || v.metres >= 9999) return "10 km+"
-  if (v.metres >= 1000) return (v.metres / 1000).toFixed(v.metres % 1000 === 0 ? 0 : 1) + " km"
-  return v.metres + " m"
+  if (v.atLeast) return Math.round(metres / 1000) + " km+"
+  if (v.atMost) return "under " + metres + " m"
+  if (metres >= 1000) return (metres / 1000).toFixed(metres % 1000 === 0 ? 0 : 1) + " km"
+  return metres + " m"
 }
 
 // US reports use eighths and quarters. 0.5 reads better as 1/2 than 0.5.
@@ -90,7 +165,18 @@ function fraction(miles) {
 
 // ------------------------------------------------------------------ clouds
 
-function clouds(report) {
+// Cloud bases are reported in hundreds of feet. Metres are rounded to the
+// nearest ten, which is how a metric report writes them.
+function altitude(feet, units) {
+  if (feet === null || feet === undefined) return null
+  if (unitsFor(units.id || units).altitude === "m") {
+    return group(Math.round(feet * METRES_PER_FOOT / 10) * 10) + " m"
+  }
+  return group(feet) + " ft"
+}
+
+function clouds(report, unitSet) {
+  var units = unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet)
   var layers = (report && report.clouds) || []
   if (layers.length === 0) return "—"
 
@@ -103,7 +189,7 @@ function clouds(report) {
     if (!layer.cover) continue
 
     var text = layer.cover
-    text += layer.baseFt === null ? " ???" : " " + group(layer.baseFt) + " ft"
+    text += layer.baseFt === null ? " ???" : " " + altitude(layer.baseFt, units)
     if (layer.type) text += " " + layer.type
     parts.push(text)
   }
@@ -112,11 +198,11 @@ function clouds(report) {
 
 // "None" for no ceiling, which is metar-taf.com's word and better than a
 // dash. An unmeasurable ceiling says so rather than pretending.
-function ceiling(category) {
+function ceiling(category, unitSet) {
   if (!category) return "—"
   if (category.ceilingUnlimited) return "None"
   if (category.ceilingFt === null || category.ceilingFt === undefined) return "Unknown"
-  return group(category.ceilingFt) + " ft"
+  return altitude(category.ceilingFt, unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet))
 }
 
 // ------------------------------------------------------- the smaller fields
@@ -141,11 +227,14 @@ function humidity(report) {
 
 // Hectopascals, because that is what a European QNH is set in. An inHg
 // report is converted and both are shown, so nothing is lost.
-function pressure(report) {
+function pressure(report, unitSet) {
+  var units = unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet)
   var p = report && report.pressure
   if (!p || (p.hPa === null && p.inHg === null)) return "—"
-  if (p.unitReported === "A") return p.hPa + " hPa (" + p.inHg.toFixed(2) + " inHg)"
-  return p.hPa + " hPa"
+  // Metar.js fills both, converting whichever the report did not give, so
+  // either preset is exact to its own rounding.
+  if (units.pressure === "inHg") return p.inHg === null ? "—" : p.inHg.toFixed(2) + " inHg"
+  return p.hPa === null ? "—" : p.hPa + " hPa"
 }
 
 function weather(report) {
@@ -197,13 +286,14 @@ function ageLevel(minutes) {
 // The decoded block, in one call. Each row carries an optional band slot so
 // the panel can colour visibility and ceiling by their own category, which
 // shows which of the two is driving the badge.
-function rows(report, category, bandSlots) {
+function rows(report, category, bandSlots, unitSet) {
   var slots = bandSlots || {}
+  var units = unitsFor(unitSet && unitSet.id ? unitSet.id : unitSet)
   var out = [
-    { label: "Wind", value: wind(report) },
-    { label: "Visibility", value: visibility(report), slot: slots.visibility || null },
-    { label: "Clouds", value: clouds(report) },
-    { label: "Ceiling", value: ceiling(category), slot: slots.ceiling || null }
+    { label: "Wind", value: wind(report, units) },
+    { label: "Visibility", value: visibility(report, units), slot: slots.visibility || null },
+    { label: "Clouds", value: clouds(report, units) },
+    { label: "Ceiling", value: ceiling(category, units), slot: slots.ceiling || null }
   ]
 
   var wx = weather(report)
@@ -211,7 +301,7 @@ function rows(report, category, bandSlots) {
 
   out.push({ label: "Temp/Dew", value: temperature(report) })
   out.push({ label: "Humidity", value: humidity(report) })
-  out.push({ label: "QNH", value: pressure(report) })
+  out.push({ label: "QNH", value: pressure(report, units) })
   return out
 }
 
@@ -230,6 +320,12 @@ if (typeof module !== "undefined") {
     age: age,
     ageLevel: ageLevel,
     rows: rows,
+    unitsFor: unitsFor,
+    unitNames: unitNames,
+    altitude: altitude,
+    windSpeed: windSpeed,
+    UNIT_SETS: UNIT_SETS,
+    UNIT_ORDER: UNIT_ORDER,
     compassPoint: compassPoint,
     windArrow: windArrow,
     group: group

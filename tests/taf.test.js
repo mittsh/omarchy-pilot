@@ -213,6 +213,22 @@ test("a forecast with no validity gives an empty timeline, not a throw", () => {
   assert.deepEqual(T.timeline(null, {}), [])
 })
 
+test("the timeline honours the label style", () => {
+  const taf = T.parse(EETN, { now: NOW })
+  const plain = T.timeline(taf, { ruleSet: "sera" })
+  const alt = T.timeline(taf, { ruleSet: "sera", labels: "vfr" })
+
+  assert.equal(at(plain, "2026-09-06T01:00:00.000Z").band.text, "SVFR")
+  assert.equal(at(alt, "2026-09-06T01:00:00.000Z").band.text, "SVFR")
+  assert.equal(at(plain, "2026-09-05T12:00:00.000Z").band.text, "VMC")
+  assert.equal(at(alt, "2026-09-05T12:00:00.000Z").band.text, "VFR")
+
+  // The wording must not change which hour is which band.
+  for (let i = 0; i < plain.length; i++) {
+    assert.equal(plain[i].band.key, alt[i].band.key)
+  }
+})
+
 test("raw lines split on the change keywords", () => {
   const lines = T.rawLines(T.parse(EETN, { now: NOW }))
   assert.equal(lines.length, 6)

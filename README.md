@@ -35,6 +35,8 @@ to the same place.
 | `icao` | — | A 4-letter ICAO code, or `auto` for the nearest aerodrome |
 | `refreshMinutes` | `10` | How often to fetch |
 | `rules` | `auto` | `auto`, `sera` or `faa`. See below |
+| `units` | `icao` | `icao`, `metric` or `us`. See below |
+| `labels` | `vmc` | `vmc` or `vfr`, the wording of the European bands |
 | `lat`, `lon` | — | Your position, if you would rather not be located automatically |
 
 ## Conditions bands
@@ -72,6 +74,68 @@ is binding.
 Set `rules` to `sera` or `faa` to override the country.
 
 The label describes **conditions**, not flight rules. It is not a clearance.
+
+### Wording
+
+`labels` chooses how the European bands are printed. **VMC** and **IMC** are
+the terms European regulation actually uses, and are the default. **VFR** and
+**IFR** are what most pilots say out loud.
+
+```bash
+omarchy bar set pilot.metar labels vfr
+```
+
+| `labels` | Good | Marginal | Bad |
+|---|---|---|---|
+| `vmc` (default) | VMC | SVFR | IMC |
+| `vfr` | VFR | SVFR | IFR |
+
+The thresholds are identical either way — only the wording changes. The FAA
+bands read the same under both, because VFR, MVFR, IFR and LIFR are already
+the spoken terms.
+
+## Units
+
+```bash
+omarchy bar set pilot.metar units metric
+```
+
+| Preset | Wind | Visibility | Pressure | Temperature | Cloud height |
+|---|---|---|---|---|---|
+| **`icao`** (default) | kt | km | hPa | °C | ft |
+| `metric` | **m/s** | km | hPa | °C | ft |
+| `us` | kt | **sm** | **inHg** | °C | ft |
+
+Only the decoded rows follow the preset. **The raw METAR and TAF are always
+quoted verbatim**, so the reported figure is one line away if a conversion
+looks surprising.
+
+Three things are worth knowing about these:
+
+**`icao` is the international convention, not strict SI.** ICAO Annex 5 makes
+the metre per second primary for wind speed and the metre primary for height,
+with the knot and the foot as permitted alternatives — and Table 4-1 sets no
+termination date for either, 45 years and counting. Nearly every state reports
+in knots, so that is the default.
+
+**`metric` differs from `icao` in one field only: the wind.** It uses the SI
+primary, m/s, which is what Russia, China, Mongolia and Kazakhstan actually
+report — the `MPS` suffix in a raw METAR. Note this is not a former-Soviet
+pattern: Azerbaijan, Georgia and Armenia all report knots.
+
+**Cloud height is feet in all three, deliberately.** Annex 5 makes the metre
+primary for height, but no METAR anywhere encodes cloud that way: the code
+form carries a `KT`/`MPS` indicator for wind and has no metric option at all
+for the cloud group. Every m/s-reporting state still sends hundreds of feet.
+Metres for cloud base exist only in Russian domestic minima, which is a
+different document from the METAR.
+
+Temperature is Celsius everywhere. Aviation has no Fahrenheit convention —
+even US METARs report Celsius.
+
+For completeness: the `us` set is a national deviation filed under Convention
+Article 38, not an ICAO alternative. Statute miles and inches of mercury
+appear nowhere in Annex 5's operative tables.
 
 ### UNKN
 

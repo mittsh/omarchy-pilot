@@ -18,6 +18,11 @@
 
 // ------------------------------------------------------------- the rule sets
 
+// Two label styles for the same three bands. VMC and IMC are the terms
+// European regulation actually uses, and are the default. VFR and IFR are
+// what most pilots say out loud, so they are offered as an alternative. The
+// thresholds are identical either way — only the wording changes.
+//
 // SERA.5005(b): "VFR flights shall not take off or land at an aerodrome
 // within a control zone, or enter the aerodrome traffic zone or aerodrome
 // traffic circuit when the reported meteorological conditions at that
@@ -32,11 +37,11 @@ var SERA = {
   id: "sera",
   source: "SERA.5005(b), SERA.5010(c)",
   bands: [
-    { key: "vmc",  slot: "vfr",  text: "VMC",  detail: "VFR",
+    { key: "vmc",  slot: "vfr",  text: "VMC",  textAlt: "VFR",  detail: "VFR",
       minCeilingFt: 1500, minVisibilityM: 5000 },
-    { key: "svfr", slot: "svfr", text: "SVFR", detail: "Special VFR only",
+    { key: "svfr", slot: "svfr", text: "SVFR", textAlt: "SVFR", detail: "Special VFR only",
       minCeilingFt: 600, minVisibilityM: 1500 },
-    { key: "imc",  slot: "ifr",  text: "IMC",  detail: "IFR only",
+    { key: "imc",  slot: "ifr",  text: "IMC",  textAlt: "IFR",  detail: "IFR only",
       minCeilingFt: null, minVisibilityM: null }
   ]
 }
@@ -62,13 +67,13 @@ var FAA = {
   id: "faa",
   source: "FAA AIM 7-1-7",
   bands: [
-    { key: "vfr",  slot: "vfr",  text: "VFR",  detail: "",
+    { key: "vfr",  slot: "vfr",  text: "VFR",  textAlt: "VFR",  detail: "",
       minCeilingFt: 3000, minVisibilityM: milesToMetres(5), exclusive: true },
-    { key: "mvfr", slot: "mvfr", text: "MVFR", detail: "Marginal VFR",
+    { key: "mvfr", slot: "mvfr", text: "MVFR", textAlt: "MVFR", detail: "Marginal VFR",
       minCeilingFt: 1000, minVisibilityM: milesToMetres(3) },
-    { key: "ifr",  slot: "ifr",  text: "IFR",  detail: "",
+    { key: "ifr",  slot: "ifr",  text: "IFR",  textAlt: "IFR",  detail: "",
       minCeilingFt: 500, minVisibilityM: milesToMetres(1) },
-    { key: "lifr", slot: "lifr", text: "LIFR", detail: "Low IFR",
+    { key: "lifr", slot: "lifr", text: "LIFR", textAlt: "LIFR", detail: "Low IFR",
       minCeilingFt: null, minVisibilityM: null }
   ]
 }
@@ -149,6 +154,7 @@ function bandIndexFor(value, bands, key) {
 //
 //   country        ISO 3166-1 alpha-2. Chooses the rule set.
 //   ruleSet        "sera" or "faa" to override the country entirely.
+//   labels         "vmc" (default) or "vfr", the wording of the SERA bands.
 //   now            the clock, for the staleness check.
 //   maxAgeMinutes  a report older than this gives UNKN. Default 180.
 //
@@ -198,7 +204,7 @@ function categorize(report, options) {
   return {
     key: band.key,
     slot: band.slot,
-    text: band.text,
+    text: String(opts.labels).toLowerCase() === "vfr" ? band.textAlt : band.text,
     detail: band.detail,
     ceilingFt: ceiling.unlimited ? null : ceiling.ft,
     ceilingUnlimited: ceiling.unlimited,
@@ -229,6 +235,11 @@ function useCeilingInfo(fn) { ceilingInfoHook = fn }
 
 // The band a single value alone would give. Used to colour the visibility
 // and ceiling rows independently, so the reader sees which one is binding.
+function labelFor(band, labels) {
+  if (!band) return ""
+  return String(labels).toLowerCase() === "vfr" ? band.textAlt : band.text
+}
+
 function bandFor(value, kind, ruleSetId) {
   var rules = RULE_SETS[String(ruleSetId || "faa").toLowerCase()]
   if (!rules || value === null || value === undefined) return null
@@ -241,6 +252,7 @@ if (typeof module !== "undefined") {
     categorize: categorize,
     ruleSetForCountry: ruleSetForCountry,
     bandFor: bandFor,
+    labelFor: labelFor,
     bandIndexFor: bandIndexFor,
     useCeilingInfo: useCeilingInfo,
     SERA: SERA,

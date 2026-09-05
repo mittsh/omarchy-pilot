@@ -38,21 +38,78 @@ test("wind keeps the variable sector and the gust", () => {
   assert.equal(F.wind(parse("EETN 050950Z 00000KT 9999 SCT030 16/10 Q0995")), "Calm")
 })
 
-test("visibility is shown in the unit the station reported", () => {
-  // Converting is what makes two tools disagree about the same weather.
-  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 9999 SCT030 16/10 Q0995")), "10 km+")
-  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 4000 SCT030 16/10 Q0995")), "4 km")
-  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 0800 FG SCT030 16/10 Q0995")), "800 m")
-  assert.equal(F.visibility(parse("EETN 050450Z VRB02KT CAVOK 11/11 Q0994")), "CAVOK")
-  assert.equal(F.visibility(parse("KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982")), "10 sm")
-  assert.equal(F.visibility(parse("KJFK 050951Z 02005KT 1/2SM BKN100 22/16 A2982")), "1/2 sm")
+test("visibility follows the preset", () => {
+  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 9999 SCT030 16/10 Q0995"), "icao"), "10 km+")
+  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 4000 SCT030 16/10 Q0995"), "icao"), "4 km")
+  assert.equal(F.visibility(parse("EETN 050950Z 09004KT 0800 FG SCT030 16/10 Q0995"), "icao"), "800 m")
+  assert.equal(F.visibility(parse("EETN 050450Z VRB02KT CAVOK 11/11 Q0994"), "icao"), "CAVOK")
+  assert.equal(F.visibility(parse("KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982"), "us"), "10 sm")
+  assert.equal(F.visibility(parse("KJFK 050951Z 02005KT 1/2SM BKN100 22/16 A2982"), "us"), "1/2 sm")
+})
+
+test("a report is converted into whichever preset is asked for", () => {
+  const european = parse("EETN 050950Z 09004KT 9999 SCT030 16/10 Q0995")
+  const american = parse("KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982")
+
+  // 9999 means 10 km or more, which is 6.2 sm or more. Each convention
+  // rounds to its own familiar figure rather than showing 6.2.
+  assert.equal(F.visibility(european, "us"), "6 sm+")
+  assert.equal(F.visibility(american, "icao"), "16.1 km")
 })
 
 test("clouds list every layer with its type", () => {
   assert.equal(F.clouds(parse("EETN 050950Z 09004KT 9999 SCT023 FEW030CB 16/10 Q0995")),
     "SCT 2,300 ft, FEW 3,000 ft CB")
+  // Feet in every preset. No METAR anywhere encodes cloud height in metres:
+  // the code form has no metric option for that group, and every
+  // m/s-reporting state still sends hundreds of feet.
+  for (const preset of F.unitNames()) {
+    assert.match(F.clouds(parse("EETN 050950Z 09004KT 9999 SCT023 16/10 Q0995"), preset), /ft$/)
+  }
   assert.equal(F.clouds(parse("KDEN 050953Z 19009KT 10SM CLR 18/11 A3006")), "Clear")
   assert.equal(F.clouds(parse("EETN 050450Z VRB02KT CAVOK 11/11 Q0994")), "No significant cloud")
+})
+
+// -------------------------------------------------------------- unit sets
+
+test("there are three presets, in order, with ICAO first", () => {
+  assert.deepEqual(F.unitNames(), ["icao", "metric", "us"])
+  assert.equal(F.unitsFor("").name, "ICAO", "an unset preset falls back to ICAO")
+  assert.equal(F.unitsFor("nonsense").name, "ICAO")
+})
+
+test("only the wind differs between ICAO and Metric", () => {
+  const icao = F.unitsFor("icao")
+  const metric = F.unitsFor("metric")
+  assert.notEqual(icao.wind, metric.wind)
+  for (const field of ["visibility", "pressure", "temperature", "altitude"]) {
+    assert.equal(icao[field], metric[field], `${field} should match`)
+  }
+})
+
+test("every preset reports temperature in Celsius", () => {
+  // Aviation has no Fahrenheit convention. Even US METARs report Celsius.
+  for (const preset of F.unitNames()) assert.equal(F.unitsFor(preset).temperature, "C")
+})
+
+test("wind converts to metres per second only under Metric", () => {
+  const report = parse("EETN 050950Z 31008KT 9999 SCT030 16/10 Q0995")
+  assert.match(F.wind(report, "icao"), /8 kt$/)
+  assert.match(F.wind(report, "us"), /8 kt$/)
+  assert.match(F.wind(report, "metric"), /4 m\/s$/, "8 kt is 4.1 m/s")
+})
+
+test("a gust converts with the wind", () => {
+  const report = parse("EETN 050950Z 24020G40KT 9999 SCT030 16/10 Q0995")
+  assert.equal(F.wind(report, "icao"), "240°  20 kt gusting 40")
+  assert.equal(F.wind(report, "metric"), "240°  10 m/s gusting 21")
+})
+
+test("an MPS report converts back to knots under ICAO", () => {
+  // Metar.js normalises every wind to knots, so the round trip must hold.
+  const report = parse("ULLI 051000Z 29005MPS 9999 SCT030 16/11 Q0994")
+  assert.equal(F.wind(report, "metric"), "290°  5 m/s", "back to what the station said")
+  assert.equal(F.wind(report, "icao"), "290°  10 kt")
 })
 
 test("ceiling says None, Unknown or a height", () => {
@@ -63,10 +120,16 @@ test("ceiling says None, Unknown or a height", () => {
   assert.equal(F.ceiling(at("EDDV 050950Z 09004KT 9999 BKN///TCU 16/10 Q0995", "DE")), "Unknown")
 })
 
-test("pressure shows hectopascals, and both units for a US report", () => {
-  assert.equal(F.pressure(parse("EETN 050950Z 09004KT 9999 SCT030 16/10 Q0995")), "995 hPa")
-  assert.equal(F.pressure(parse("KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982")),
-    "1010 hPa (29.82 inHg)")
+test("pressure follows the preset, whatever the report used", () => {
+  const european = parse("EETN 050950Z 09004KT 9999 SCT030 16/10 Q0995")
+  const american = parse("KJFK 050951Z 02005KT 10SM BKN100 22/16 A2982")
+
+  // Metar.js fills both fields, converting whichever the report omitted, so
+  // either preset is exact for either report.
+  assert.equal(F.pressure(european, "icao"), "995 hPa")
+  assert.equal(F.pressure(european, "us"), "29.38 inHg")
+  assert.equal(F.pressure(american, "icao"), "1010 hPa")
+  assert.equal(F.pressure(american, "us"), "29.82 inHg")
 })
 
 test("temperature keeps the tenths the US remark block gives", () => {
@@ -102,6 +165,29 @@ test("the row set carries a band slot for visibility and ceiling only", () => {
   assert.deepEqual(labels, ["Wind", "Visibility", "Clouds", "Ceiling", "Temp/Dew", "Humidity", "QNH"])
   assert.equal(rows.find((r) => r.label === "Visibility").slot, "svfr")
   assert.equal(rows.find((r) => r.label === "Wind").slot, undefined)
+})
+
+test("every row in the set follows the preset, not just the first few", () => {
+  // The QNH row once kept hPa under the US preset because it was the one
+  // row not passed the units. Assert the whole set, not a sample.
+  const report = parse("EETN 050950Z 31008KT 9999 BKN014 16/10 Q0995")
+  const category = C.categorize(report, { country: "EE", now: NOW })
+  const valueOf = (rows, label) => rows.find((r) => r.label === label).value
+
+  const us = F.rows(report, category, {}, "us")
+  assert.match(valueOf(us, "QNH"), /inHg$/)
+  assert.match(valueOf(us, "Visibility"), /sm/)
+  assert.match(valueOf(us, "Wind"), /kt$/)
+
+  const metric = F.rows(report, category, {}, "metric")
+  assert.match(valueOf(metric, "QNH"), /hPa$/)
+  assert.match(valueOf(metric, "Wind"), /m\/s$/)
+  assert.match(valueOf(metric, "Ceiling"), /ft$/)
+
+  const icao = F.rows(report, category, {}, "icao")
+  assert.match(valueOf(icao, "QNH"), /hPa$/)
+  assert.match(valueOf(icao, "Wind"), /kt$/)
+  assert.match(valueOf(icao, "Visibility"), /km/)
 })
 
 test("a weather group appears as a row only when there is weather", () => {
