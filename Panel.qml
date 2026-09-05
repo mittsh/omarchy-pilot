@@ -294,6 +294,12 @@ Panel {
       return
     }
 
+    // The weather location is read asynchronously, so on the first run it may
+    // simply not have arrived yet. Waiting is right: falling through here
+    // would send an IP request on behalf of someone who had already said
+    // where they are. The refresh timer comes back every few minutes.
+    if (!weatherLocationSettled) return
+
     // 3. Last resort, and the only one that leaves this machine.
     if (!geoProc.running) {
       geoProc.command = curl("https://ipapi.co/json/")
@@ -302,6 +308,11 @@ Panel {
   }
 
   property var weatherLocation: null
+  property bool weatherLocationSettled: false
+
+  // Resolve as soon as the file settles, rather than waiting for the next
+  // refresh tick.
+  onWeatherLocationSettledChanged: if (wantsNearest && resolvedIcao === "") resolveNearest()
 
   FileView {
     path: Color.home + "/.local/state/omarchy/settings/weather.json"
@@ -317,8 +328,14 @@ Panel {
       } catch (e) {
         root.weatherLocation = null
       }
+      root.weatherLocationSettled = true
     }
-    onLoadFailed: root.weatherLocation = null
+    // No file at all is a settled answer: the weather plugin is in
+    // auto-detect mode and holds no coordinates to borrow.
+    onLoadFailed: {
+      root.weatherLocation = null
+      root.weatherLocationSettled = true
+    }
   }
 
   Process {
