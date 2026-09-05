@@ -7,6 +7,8 @@ import qs.Ui
 import "Metar.js" as Metar
 import "Category.js" as Category
 import "Format.js" as Format
+import "Sources.js" as Sources
+import "Stations.js" as Stations
 import "Taf.js" as Taf
 import "Theme.js" as Theme
 
@@ -28,7 +30,12 @@ Panel {
 
   // Set with `omarchy bar set pilot.metar icao EETN`, or from the field in
   // the panel. Both write the same entry in shell.json.
-  readonly property string icao: String(root.setting("icao", "")).toUpperCase().trim()
+  // A 4-letter code, or "auto" to take the nearest aerodrome. Resolving
+  // "auto" writes the code it found back into this setting, so the lookup
+  // happens once and the answer is visible and overridable.
+  readonly property string icaoSetting: String(root.setting("icao", "")).toUpperCase().trim()
+  readonly property bool wantsNearest: icaoSetting === "" || icaoSetting === "AUTO" || icaoSetting === "NEAREST"
+  readonly property string icao: wantsNearest ? resolvedIcao : icaoSetting
   readonly property int refreshMinutes: Math.max(1, parseInt(root.setting("refreshMinutes", 10), 10) || 10)
   // "auto" follows the aerodrome's country. "sera" or "faa" forces one.
   readonly property string ruleSetOverride: String(root.setting("rules", "auto")).toLowerCase()
@@ -38,11 +45,19 @@ Panel {
   property string rawMetar: ""
   property string rawTaf: ""
   property string errorText: ""
-  property var station: null          // { country, site, elevationM }
+  property string resolvedIcao: ""    // filled when "auto" is resolved
+  property string nearestNote: ""     // how far away it turned out to be
+  property int sourceIndex: 0         // which source in the chain is in use
+  property var responses: ({})        // this attempt's replies, by key
+  property var pending: []            // requests left in this attempt
   property int tick: 0                // bumped every minute, to re-age the display
 
   readonly property var report: rawMetar ? Metar.parse(rawMetar, { now: new Date() }) : null
-  readonly property string country: station && station.country ? station.country : ""
+  // From the bundled table: no network call, and better names than the
+  // weather API gives. It calls EETN "Tallin Arpt".
+  readonly property var station: icao ? Stations.lookup(icao) : null
+  readonly property string country: station ? station.country : ""
+  readonly property string siteName: station ? station.name : ""
 
   readonly property var category: {
     tick   // re-evaluate as the report ages past the staleness limit
@@ -193,102 +208,162 @@ Panel {
 
   readonly property string userAgent: "omarchy-pilot/0.1 (https://github.com/mittsh/omarchy-pilot)"
 
-  readonly property string apiBase: "https://aviationweather.gov/api/data"
-
-  // The command is built here rather than bound to `icao`, because a binding
-  // is evaluated lazily: setting `running = true` from onIcaoChanged could
-  // start the process while `command` still held the previous code, and the
-  // panel would then show the old aerodrome's name against the new weather.
-  function refresh() {
-    if (icao.length !== 4) {
-      errorText = "Set an ICAO code"
-      return
-    }
-
-    if (!weatherProc.running) {
-      weatherProc.command = curl(apiBase + "/metar?ids=" + icao + "&format=raw&taf=true")
-      weatherProc.running = true
-    }
-
-    if (!station && !stationProc.running) {
-      stationProc.command = curl(apiBase + "/stationinfo?ids=" + icao + "&format=json")
-      stationProc.running = true
-    }
-  }
-
-  // NOAA blocks unidentified automated traffic, so the agent is never
-  // optional. -fsS keeps curl silent on success and on an HTTP error alike.
+  // NOAA blocks unidentified automated traffic and api.met.no returns 403
+  // without an agent, so it is never optional. -fsS keeps curl silent on
+  // success and on an HTTP error alike.
   function curl(url) {
     return ["curl", "-fsS", "--max-time", "10", "-A", root.userAgent, url]
   }
 
-  // One request returns both the METAR and the TAF.
+  function refresh() {
+    if (wantsNearest && resolvedIcao === "") { resolveNearest(); return }
+    if (icao.length !== 4) { errorText = "Set an ICAO code"; return }
+    startSource(0)
+  }
+
+  // Try each source in turn. A source that answers with nothing — which is
+  // what an unknown code gets from the first one, as HTTP 204 — falls
+  // through rather than blanking the panel.
+  function startSource(index) {
+    if (fetchProc.running) return
+    if (index >= Sources.count()) {
+      errorText = "No data for " + icao + " from any source"
+      return
+    }
+    sourceIndex = index
+    responses = ({})
+    pending = Sources.list()[index].requests(icao).slice()
+    runNext()
+  }
+
+  function runNext() {
+    if (pending.length === 0) { finishSource(); return }
+    var request = pending[0]
+    // Built here rather than bound, because a binding is evaluated lazily:
+    // starting the process could otherwise use the previous aerodrome's URL
+    // and show its name against the new weather.
+    fetchProc.command = curl(request.url)
+    fetchProc.running = true
+  }
+
+  function finishSource() {
+    var source = Sources.list()[sourceIndex]
+    var result = source.combine(responses)
+
+    if (!Sources.isUsable(result)) { startSource(sourceIndex + 1); return }
+
+    errorText = ""
+    rawMetar = result.metar
+    rawTaf = result.taf
+  }
+
   Process {
-    id: weatherProc
+    id: fetchProc
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
-        var text = String(this.text || "").trim()
-        // curl -fsS prints nothing on an HTTP error, and an unknown ICAO
-        // code returns 204 with an empty body rather than a 404.
-        if (!text) {
-          root.errorText = "No data for " + root.icao
-          return
+        var request = root.pending.shift()
+        if (request) {
+          var next = {}
+          for (var key in root.responses) next[key] = root.responses[key]
+          next[request.key] = String(this.text || "")
+          root.responses = next
         }
-        root.errorText = ""
-        root.splitReports(text)
+        root.runNext()
       }
     }
   }
 
-  // The station's country decides the rule set, and its name fills the
-  // header. Fetched once per ICAO code, then cached.
+  // ------------------------------------------------------ nearest aerodrome
+  //
+  // Only ever runs when the user asked for it, by leaving `icao` unset or
+  // setting it to "auto". The position comes from the least invasive source
+  // available, and the resolved code is written back to the config so the
+  // lookup never repeats.
+
+  function resolveNearest() {
+    // 1. Coordinates the user set explicitly.
+    var lat = parseFloat(root.setting("lat", ""))
+    var lon = parseFloat(root.setting("lon", ""))
+    if (!isNaN(lat) && !isNaN(lon)) { adoptNearest(lat, lon, "your configured position"); return }
+
+    // 2. The location the Omarchy weather plugin already holds, if any.
+    //    Reusing it means no new request and no new service.
+    if (weatherLocation && weatherLocation.latitude !== null) {
+      adoptNearest(weatherLocation.latitude, weatherLocation.longitude, "your weather location")
+      return
+    }
+
+    // 3. Last resort, and the only one that leaves this machine.
+    if (!geoProc.running) {
+      geoProc.command = curl("https://ipapi.co/json/")
+      geoProc.running = true
+    }
+  }
+
+  property var weatherLocation: null
+
+  FileView {
+    path: Color.home + "/.local/state/omarchy/settings/weather.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try {
+        var data = JSON.parse(text())
+        var lat = parseFloat(data.latitude)
+        var lon = parseFloat(data.longitude)
+        root.weatherLocation = (isNaN(lat) || isNaN(lon)) ? null : { latitude: lat, longitude: lon }
+      } catch (e) {
+        root.weatherLocation = null
+      }
+    }
+    onLoadFailed: root.weatherLocation = null
+  }
+
   Process {
-    id: stationProc
+    id: geoProc
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         try {
-          var rows = JSON.parse(String(this.text || "[]"))
-          if (rows.length > 0) {
-            root.station = {
-              country: rows[0].country || "",
-              site: rows[0].site || "",
-              elevationM: rows[0].elev
-            }
-          }
+          var data = JSON.parse(String(this.text || "{}"))
+          var lat = parseFloat(data.latitude)
+          var lon = parseFloat(data.longitude)
+          if (isNaN(lat) || isNaN(lon)) { root.errorText = "Could not find your position"; return }
+          root.adoptNearest(lat, lon, "your approximate location")
         } catch (e) {
-          root.station = null
+          root.errorText = "Could not find your position"
         }
       }
     }
   }
 
-  // The response is a METAR line, then the TAF, which wraps over several
-  // lines. Everything from the TAF keyword onward belongs to the forecast.
-  function splitReports(text) {
-    var lines = text.split("\n")
-    var metarLines = []
-    var tafLines = []
-    var inTaf = false
-
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i]
-      if (/^\s*TAF\b/.test(line)) inTaf = true
-      if (inTaf) tafLines.push(line.replace(/\s+$/, ""))
-      else if (line.trim()) metarLines.push(line.trim())
+  // Search the bundled table, not the network. Prefer an aerodrome that also
+  // issues a forecast, since half the panel is the TAF; fall back to any.
+  function adoptNearest(lat, lon, sourceText) {
+    var found = Stations.nearest(lat, lon, { limit: 1, requireTaf: true, maxKm: 400 })
+    if (found.length === 0) found = Stations.nearest(lat, lon, { limit: 1, maxKm: 400 })
+    if (found.length === 0) {
+      errorText = "No aerodrome within 400 km"
+      return
     }
 
-    rawMetar = metarLines.join(" ").trim()
-    rawTaf = tafLines.join("\n").trim()
+    var pick = found[0]
+    resolvedIcao = pick.station.icao
+    nearestNote = pick.distanceKm + " km from " + sourceText
+    errorText = ""
+    // Persist it, so the lookup happens once and the answer is visible.
+    commitIcao(pick.station.icao)
+    startSource(0)
   }
 
   onIcaoChanged: {
-    station = null
     rawMetar = ""
     rawTaf = ""
     errorText = ""
-    refresh()
+    sourceIndex = 0
+    if (icao.length === 4) startSource(0)
   }
 
   Timer {
@@ -445,7 +520,7 @@ Panel {
               Text {
                 visible: text !== ""
                 width: parent.width
-                text: root.station && root.station.site ? root.station.site : ""
+                text: root.siteName
                 color: root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -521,6 +596,16 @@ Panel {
             color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
+          }
+
+          Text {
+            width: parent.width
+            visible: root.nearestNote !== "" && root.wantsNearest
+            text: "Nearest: " + root.nearestNote
+            color: root.fainter
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
             wrapMode: Text.WordWrap
           }
 
@@ -801,10 +886,20 @@ Panel {
 
             Text {
               anchors.verticalCenter: parent.verticalCenter
-              text: root.category && root.category.source ? root.category.source : ""
+              text: {
+                var parts = []
+                if (root.category && root.category.source) parts.push(root.category.source)
+                var source = Sources.list()[root.sourceIndex]
+                // Naming the source only when it is a fallback keeps the
+                // normal case quiet but makes a degraded one obvious.
+                if (root.sourceIndex > 0) parts.push("via " + source.name)
+                if (source.attribution) parts.push(source.attribution)
+                return parts.join(" · ")
+              }
               color: root.fainter
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
+              elide: Text.ElideRight
             }
           }
         }
