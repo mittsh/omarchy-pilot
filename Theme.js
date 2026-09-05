@@ -104,14 +104,22 @@ function isLight(backgroundHex) {
 var CHAINS = {
   vfr:  ["green",   "color2", "bright_green",   "color10", "$foreground"],
   mvfr: ["blue",    "color4", "bright_blue",    "color12", "$accent"],
+  svfr: ["yellow",  "color3", "bright_yellow",  "color11", "$accent"],
   ifr:  ["red",     "color1", "bright_red",     "color9",  "$urgent"],
   lifr: ["magenta", "color5", "bright_magenta", "color13", "$urgent"]
 }
 
-// Resolved in this order. An earlier category keeps its colour; a later one
-// that collides walks further down its own chain. Severity order puts the two
-// that matter most to tell apart at the ends.
-var RESOLVE_ORDER = ["vfr", "mvfr", "ifr", "lifr"]
+// Resolved in this order. An earlier slot keeps its colour; a later one that
+// collides walks further down its own chain.
+//
+// Only the slots a scheme actually uses are resolved, so the three SERA bands
+// never lose a colour to an FAA band that is not on screen.
+var RESOLVE_ORDER = ["vfr", "mvfr", "svfr", "ifr", "lifr"]
+
+var SCHEME_SLOTS = {
+  sera: ["vfr", "svfr", "ifr"],
+  faa: ["vfr", "mvfr", "ifr", "lifr"]
+}
 
 // Nudge a colour that could not be made unique any other way. Moving toward
 // or away from the background keeps it visible on the panel.
@@ -126,17 +134,21 @@ function shift(hex, backgroundHex) {
 // palette   the parsed colors.toml
 // fallbacks { foreground, background, accent, urgent } as "#rrggbb", taken
 //           from the Color singleton by the caller
+// slots     which semantic slots to resolve. Defaults to all of them; pass
+//           SCHEME_SLOTS.sera or .faa to resolve only what is on screen.
 //
-// Returns { vfr, mvfr, ifr, lifr } as "#rrggbb", all four distinct.
-function badgeColors(palette, fallbacks) {
+// Returns a map of slot name to "#rrggbb", all distinct.
+function badgeColors(palette, fallbacks, slots) {
   var p = palette || {}
   var f = fallbacks || {}
+  var order = slots || RESOLVE_ORDER
   var out = {}
   var taken = {}
 
-  for (var i = 0; i < RESOLVE_ORDER.length; i++) {
-    var name = RESOLVE_ORDER[i]
+  for (var i = 0; i < order.length; i++) {
+    var name = order[i]
     var chain = CHAINS[name]
+    if (!chain) continue
     var chosen = null
 
     for (var j = 0; j < chain.length; j++) {
@@ -161,12 +173,16 @@ function badgeColors(palette, fallbacks) {
   return out
 }
 
-// Everything the panel needs to paint one category, in one call.
-function badge(category, palette, fallbacks) {
-  var colors = badgeColors(palette, fallbacks)
-  var key = String(category || "").toLowerCase()
-  var fill = colors[key] || (fallbacks && fallbacks.muted) || "#808080"
-  return { fill: fill, label: labelOn(fill), text: String(category || "UNKN") }
+// Everything the panel needs to paint one band, in one call.
+//
+// slot is the semantic colour slot ("vfr", "svfr", "ifr", ...), text is what
+// the badge prints. They differ because the SERA scheme prints "VMC" and
+// "SVFR" over the green and yellow slots.
+function badge(slot, text, palette, fallbacks, slots) {
+  var colors = badgeColors(palette, fallbacks, slots)
+  var key = String(slot || "").toLowerCase()
+  var fill = colors[key] || (fallbacks && fallbacks.foreground) || "#808080"
+  return { fill: fill, label: labelOn(fill), text: String(text || "UNKN") }
 }
 
 if (typeof module !== "undefined") {
@@ -181,6 +197,7 @@ if (typeof module !== "undefined") {
     toRgb: toRgb,
     toHex: toHex,
     CHAINS: CHAINS,
-    RESOLVE_ORDER: RESOLVE_ORDER
+    RESOLVE_ORDER: RESOLVE_ORDER,
+    SCHEME_SLOTS: SCHEME_SLOTS
   }
 }

@@ -507,6 +507,35 @@ function ceilingOf(clouds) {
   return lowest
 }
 
+// Three states, not two. A flight category cannot be computed from
+// ceilingOf() alone, because null conflates "the sky is clear" with "the
+// station could not measure it", and those must give opposite answers.
+//
+//   { ft: 1700, unlimited: false, known: true }   a real ceiling
+//   { ft: null, unlimited: true,  known: true }   nothing at or above broken
+//   { ft: null, unlimited: false, known: false }  cannot be determined
+function ceilingInfo(clouds) {
+  var layers = clouds || []
+  if (layers.length === 0) {
+    // No cloud group at all. An observer who saw a clear sky sends SKC or
+    // NSC, so silence means the group is missing, not that the sky is clear.
+    return { ft: null, unlimited: false, known: false }
+  }
+
+  for (var i = 0; i < layers.length; i++) {
+    var layer = layers[i]
+    // A ceiling-forming layer whose base could not be measured, such as
+    // BKN/// in fog. The ceiling is real but its height is unknown.
+    if (layer.cover && CEILING_COVERS.indexOf(layer.cover) !== -1 && layer.baseFt === null) {
+      return { ft: null, unlimited: false, known: false }
+    }
+  }
+
+  var lowest = ceilingOf(layers)
+  if (lowest !== null) return { ft: lowest, unlimited: false, known: true }
+  return { ft: null, unlimited: true, known: true }
+}
+
 // True when the report is old enough that it should not be trusted at face
 // value. A routine METAR is issued hourly, so 90 minutes means one was missed.
 function ageMinutes(report, now) {
@@ -530,6 +559,7 @@ if (typeof module !== "undefined") {
     parseRemarkSeaLevelPressure: parseRemarkSeaLevelPressure,
     resolveReportTime: resolveReportTime,
     ceilingOf: ceilingOf,
+    ceilingInfo: ceilingInfo,
     ageMinutes: ageMinutes,
     relativeHumidity: relativeHumidity,
     mpsToKnots: mpsToKnots,

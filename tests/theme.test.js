@@ -193,13 +193,28 @@ test("an empty palette still produces four usable fills", () => {
   assertUsable(colors, {}, "empty")
 })
 
-test("the badge always carries its category as text", () => {
+test("the badge always carries its band as text", () => {
   // Six shipped themes are monochrome or have duplicate palette entries, so
   // colour can never be the only channel.
-  const badge = T.badge("LIFR", {}, { foreground: "#cacccc", background: "#101315", urgent: "#a55555" })
-  assert.equal(badge.text, "LIFR")
-  assert.ok(badge.fill)
-  assert.ok(badge.label)
+  const fallbacks = { foreground: "#cacccc", background: "#101315", accent: "#7aa2f7", urgent: "#a55555" }
+  const lifr = T.badge("lifr", "LIFR", {}, fallbacks, T.SCHEME_SLOTS.faa)
+  assert.equal(lifr.text, "LIFR")
+  assert.ok(lifr.fill)
+  assert.ok(lifr.label)
+
+  // The slot and the printed text differ under SERA: the amber band is the
+  // "svfr" colour slot but prints "SVFR", and the green slot prints "VMC".
+  const vmc = T.badge("vfr", "VMC", { green: "#9ece6a" }, fallbacks, T.SCHEME_SLOTS.sera)
+  assert.equal(vmc.text, "VMC")
+  assert.equal(vmc.fill, "#9ece6a")
+})
+
+test("a scheme resolves only the slots it shows", () => {
+  const palette = { green: "#9ece6a", yellow: "#e0af68", red: "#f7768e", blue: "#7aa2f7", magenta: "#ad8ee6" }
+  const sera = T.badgeColors(palette, fallbacksFor(palette), T.SCHEME_SLOTS.sera)
+  assert.deepEqual(Object.keys(sera).sort(), ["ifr", "svfr", "vfr"])
+  const faa = T.badgeColors(palette, fallbacksFor(palette), T.SCHEME_SLOTS.faa)
+  assert.deepEqual(Object.keys(faa).sort(), ["ifr", "lifr", "mvfr", "vfr"])
 })
 
 // -------------------------------------------- every theme installed locally

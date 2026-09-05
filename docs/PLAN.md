@@ -135,7 +135,7 @@ omarchy-pilot/
 ├── Panel.qml          Bar pill, popup, fetch, timers
 ├── Metar.js           METAR decoder            DONE
 ├── Theme.js           Palette resolution       DONE
-├── Category.js        Flight category rules    BLOCKED, see section 5
+├── Category.js        Flight category rules    DONE
 ├── Taf.js             TAF decoder and timeline TO DO
 ├── dev/sync.sh        Development install
 ├── docs/PLAN.md       This file
@@ -149,41 +149,106 @@ is invisible to QML, where `module` is undefined.
 
 ---
 
-## 5. Flight category — OPEN
+## 5. Flight category — SETTLED
 
-The FAA scheme is settled and is what US sources return:
+### There is no EASA equivalent of MVFR and LIFR
 
-| Category | Ceiling | Visibility |
+A full-text search of the **EASA Easy Access Rules for SERA, August 2025** —
+275 pages, the consolidated Regulation (EU) 923/2012 — returns **zero
+occurrences of MVFR and zero of LIFR**. Same result in the German met service
+decode brochure and in UK CAP 746.
+
+They are a US charting convention, and not regulatory even there. FAA
+AC 00-45H: *"These categories are not flight rules ... they were created for
+weather charts as a means to visually enhance the products."*
+
+Europe defines a **binary**, VMC or IMC, plus two numeric gates that apply at
+an aerodrome and are computable from a METAR. Those gates are the European
+rule set.
+
+### The European rule set
+
+| Band | Ceiling | Visibility | Source |
+|---|---|---|---|
+| **VMC** — VFR | at or above 1500 ft | **and** at or above 5 km | SERA.5005(b) |
+| **SVFR** — Special VFR only | at or above 600 ft | **and** at or above 1500 m | SERA.5010(c) |
+| **IMC** — IFR only | below that | below that | under the SVFR floor |
+
+Estonia adds nothing of its own. Its AIP ENR 1.2 reads in full: *"Estonia
+follows visual flight rules established by the European Commission
+Implementing Regulation (EU) No 923/2012."*
+
+The middle band is a real decision at EETN. Tallinn CTR is Class C, so below
+1500 ft or 5 km a VFR landing needs a Special VFR clearance from Tallinn
+Tower. "MVFR" would be a decision about nothing.
+
+The label says **conditions**, never "flight rules". ForeFlight renamed its
+own display for this reason in 2015.
+
+### The FAA rule set, for everywhere else
+
+FAA AIM 7-1-7, verbatim. VFR is the only band using "greater than"; the rest
+are "and/or", so the worse of ceiling and visibility wins.
+
+| Band | Ceiling | Visibility |
 |---|---|---|
-| VFR | over 3000 ft | **and** over 5 sm (8 km) |
-| MVFR | 1000 to 3000 ft | **or** 3 to 5 sm |
-| IFR | 500 to 1000 ft | **or** 1 to 3 sm |
-| LIFR | below 500 ft | **or** below 1 mile |
-| UNKN | data missing or stale | |
+| VFR | over 3000 ft | **and** over 5 sm |
+| MVFR | 1000 to 3000 ft | **or** 3 to 5 sm inclusive |
+| IFR | 500 to under 1000 ft | **or** 1 to under 3 sm |
+| LIFR | under 500 ft | **or** under 1 mile |
 
-The category is the **worse** of the two values. A ceiling is the lowest
-BKN, OVC or VV layer.
+Verified against NOAA's own `fltCat` on 28 live US reports: **28 agree, 0
+differ**.
 
-**OPEN: what a European aerodrome should show.** Research is running on
-whether EASA or ICAO defines any equivalent, whether MVFR and LIFR are used
-in Europe at all, and whether the ICAO prefix is a sound way to pick the rule
-set. `Category.js` is not written until that reports, because the answer
-decides its shape.
+### Choosing the rule set
+
+By **ISO 3166-1 country**, never by the ICAO prefix. The prefix is not a
+sound proxy for the regulator:
+
+| Prefix trap | Reality |
+|---|---|
+| `UK` | Ukraine, not the United Kingdom |
+| `EG` | Six jurisdictions, including the Falklands and British Antarctic Territory |
+| `BI` / `BG` | Iceland is EASA; Greenland is Danish and outside the EU |
+| `LT` | Turkey, not EASA |
+| `TFFF` / `NTAA` | Martinique is EASA, Tahiti is not. Both are France |
+| `GCLP` | The Canaries are fully EASA, inside the African G block |
+
+The plugin bundles an ICAO to ISO-country table generated from OurAirports
+(public domain, about 25 000 rows, well under 100 KB), then maps the country
+to a rule set. SERA applies in the 31 EASA states, the EU outermost regions,
+and the United Kingdom with its crown dependencies, which retained SERA as
+assimilated law.
+
+An unknown country gives **UNKN**, never a guess. A wrong regulator is worse
+than no regulator.
+
+### UNKN is a real answer
+
+| Cause | Why it matters |
+|---|---|
+| Ceiling cannot be measured | `BKN///` in fog. Reading `///` as zero would report the worst category from data that says nothing |
+| No cloud group at all | An observer who sees a clear sky sends SKC or NSC. Silence means the group is missing |
+| Report is stale | The NOAA feed has served a seventeen-day-old report for EEEI while still assigning it a category. Default limit is 180 minutes |
+| Country unknown | See above |
 
 **Out of scope: GAFOR.** The General Aviation Forecast route-sector scheme is
 too specific for this plugin. It covers route sectors rather than an
 aerodrome, it exists only in a few countries, and it needs a different data
 source. Decided 2026-09-05.
 
-Two things are already settled regardless of the outcome:
+**Out of scope: NATO colour states.** Real, and genuinely European, but
+military only. They never appear on a civil METAR, and computing one would
+mean picking a national okta rule that no civil authority applies to a civil
+aerodrome. If a METAR already carries a colour state, pass it through as
+observed data; never invent one.
 
-- The badge always prints its category as **text**. Colour is reinforcement,
+Two things hold whatever the rule set:
+
+- The badge always prints its band as **text**. Colour is reinforcement,
   never the only channel — see section 7.
-- Visibility and ceiling are each coloured by their own category, so the
-  reader sees which of the two is driving the result. This is the best idea
-  on metar-taf.com and it costs nothing.
-
----
+- Visibility and ceiling are each coloured by their own band, so the reader
+  sees which of the two is driving the result.
 
 ## 6. Panel layout
 
@@ -353,13 +418,13 @@ All are handled and tested.
 |---|---|---|
 | 1 | `Metar.js` and tests | **Done.** 20 tests. 40 live aerodromes, no unknown groups |
 | 2 | `Theme.js` and tests | **Done.** 14 tests. All 22 installed themes swept |
-| 3 | `Category.js` and tests | **Blocked** on the EASA question |
-| 4 | Skeleton plugin, pill on the bar | To do |
+| 3 | `Category.js` and tests | **Done.** 18 tests. 28 of 28 agree with NOAA `fltCat` |
+| 4 | Skeleton plugin, pill on the bar | **Next** |
 | 5 | Panel decoded rows and raw box | To do |
 | 6 | `Taf.js` and tests | To do |
 | 7 | Timeline strip | To do |
 | 8 | ICAO field, nearest lookup, fallbacks | To do |
-| 9 | `tests/all.sh`, README, first push | To do |
+| 9 | README and first push | To do. `tests/all.sh` is written |
 
 Phases 1, 2, 3 and 6 need no running shell.
 
@@ -382,7 +447,9 @@ That technique extends to theme testing, with one correction:
 
 ## 11. Open questions
 
-1. **The European category scheme.** Section 5. Research running.
+1. **The bundled station table.** `dev/build-stations.js` is not written
+   yet, so `Category.js` takes the country as a parameter. Until the table
+   exists the plugin cannot resolve a country on its own.
 2. **Aerodrome name quality.** The API calls EETN "Tallin Arpt", misspelled
    and abbreviated. Options: accept it, allow a `name` override key, or
    generate a name table from OurAirports at build time. Deferred until the
