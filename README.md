@@ -3,8 +3,41 @@
 Aviation weather for the [Omarchy](https://omarchy.org/) status bar. One
 aerodrome: its METAR, its TAF, and a conditions band.
 
+![The bar pill: the ICAO code EETN in grey beside a green badge reading VMC](docs/images/pill-eetn.png)
+
 The bar pill shows the ICAO code and the band. Click it for the decoded
 report, the raw METAR, an hour-by-hour forecast strip, and the raw TAF.
+
+![The Omarchy Pilot panel for EETN. A header reads EETN, Lennart Meri Tallinn Airport, with a green VMC badge. Below it the observation time 12:20, 09:20Z, 6m old, then decoded rows: wind 270 degrees 4 kt, visibility CAVOK, no significant cloud, no ceiling, temperature and dew point 14 / 6 degrees Celsius, humidity 59 percent, QNH 1018 hPa. Then the raw METAR, a green hour-by-hour forecast strip with an amber lower bar over three afternoon hours, the raw TAF, and an ICAO input box](docs/images/panel-eetn.png)
+
+Every screenshot on this page is the real panel, showing the weather that was
+actually reported at the moment it was taken.
+
+### Four more aerodromes
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/panel-ksfo.png" alt="The panel for KSFO, San Francisco International Airport, with a green VFR badge. Visibility 16.1 km, clouds FEW 600 ft and FEW 1,400 ft, no ceiling, QNH 1015 hPa. The footer reads FAA AIM 7-1-7, ICAO units"></td>
+<td width="50%"><img src="docs/images/panel-lfmd.png" alt="The panel for LFMD, Cannes Mandelieu Airport, with a green VMC badge. Wind 170 degrees 5 kt, visibility CAVOK, no significant cloud, 31 / 19 degrees Celsius, QNH 1022 hPa. The footer reads SERA.5005(b), SERA.5010(c), ICAO units"></td>
+</tr>
+<tr>
+<td valign="top"><b>KSFO</b> — San Francisco. The United States, so the FAA
+bands: <b>VFR</b>, MVFR, IFR, LIFR, and the footer cites AIM 7-1-7.</td>
+<td valign="top"><b>LFMD</b> — Cannes Mandelieu. Europe, so the SERA bands:
+<b>VMC</b>, SVFR, IMC, and the footer cites the two SERA gates.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/panel-engm.png" alt="The panel for ENGM, Oslo-Gardermoen International Airport, with an amber SVFR badge. Visibility 10 km+ printed in green, clouds BKN 900 ft, ceiling 900 ft printed in amber. The forecast strip is amber, with a pink lower bar over the first three hours and green blocks at the end"></td>
+<td width="50%"><img src="docs/images/panel-rjaa.png" alt="The panel for RJAA, Narita International Airport, with a red IFR badge. Wind variable 2 kt, visibility 4 km, clouds FEW 200 ft and BKN 700 ft, ceiling 700 ft in red, a weather row reading Light showers of rain, Mist, humidity 100 percent. The forecast strip is blue for the whole period"></td>
+</tr>
+<tr>
+<td valign="top"><b>ENGM</b> — Oslo Gardermoen, <b>SVFR</b>. Visibility is
+10 km+ and green; the 900 ft ceiling is what puts the aerodrome out of VMC,
+and only that row turns amber.</td>
+<td valign="top"><b>RJAA</b> — Narita, <b>IFR</b>. 4 km and a 700 ft ceiling
+in rain and mist, with a forecast strip that stays MVFR blue all period.</td>
+</tr>
+</table>
 
 ## Install
 
@@ -41,6 +74,8 @@ to the same place.
 
 ## Conditions bands
 
+![A bar pill reading EETN beside a green VMC badge](docs/images/pill-eetn.png) ![A bar pill reading KSFO beside a green VFR badge](docs/images/pill-ksfo.png) ![A bar pill reading ENGM beside an amber SVFR badge](docs/images/pill-engm.png) ![A bar pill reading RJAA beside a red IFR badge](docs/images/pill-rjaa.png)
+
 **In Europe there is no equivalent of MVFR and LIFR.** A full-text search of
 the EASA Easy Access Rules for SERA — the consolidated Regulation (EU)
 923/2012 — finds zero occurrences of either. They are a US charting
@@ -71,6 +106,11 @@ Either way the worse of ceiling and visibility wins, and the visibility and
 ceiling rows are coloured by their own band, so you can see which of the two
 is binding.
 
+![Four decoded rows from the ENGM panel. Visibility reads 10 km+ in green, ceiling reads 900 ft in amber, and the wind and cloud rows are uncoloured](docs/images/fields-engm.png)
+
+Oslo above is the case: the visibility is fine on its own, the ceiling is
+not, and the aerodrome takes the ceiling's band.
+
 Set `rules` to `sera` or `faa` to override the country.
 
 The label describes **conditions**, not flight rules. It is not a clearance.
@@ -90,6 +130,10 @@ omarchy bar set pilot.metar labels vfr
 | `vmc` (default) | VMC | SVFR | IMC |
 | `vfr` | VFR | SVFR | IFR |
 
+![The EETN pill with a green VMC badge](docs/images/pill-eetn.png) ![The same EETN pill under labels vfr, with a green VFR badge](docs/images/pill-eetn-vfr.png)
+
+The same aerodrome and the same report, under `labels vmc` and `labels vfr`.
+
 The thresholds are identical either way — only the wording changes. The FAA
 bands read the same under both, because VFR, MVFR, IFR and LIFR are already
 the spoken terms.
@@ -105,6 +149,21 @@ omarchy bar set pilot.metar units metric
 | **`icao`** (default) | kt | km | hPa | °C | ft |
 | `metric` | **m/s** | km | hPa | °C | ft |
 | `us` | kt | **sm** | **inHg** | °C | ft |
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/units-icao.png" alt="Decoded rows from the KSFO panel under the icao preset: visibility 16.1 km, QNH 1015 hPa"></td>
+<td width="50%"><img src="docs/images/units-us.png" alt="The same KSFO rows under the us preset: visibility 10 sm, QNH 29.97 inHg"></td>
+</tr>
+<tr>
+<td align="center"><code>units icao</code></td>
+<td align="center"><code>units us</code></td>
+</tr>
+</table>
+
+The same KSFO report either way. It was filed as `10SM` and `A2997`, so the
+`us` column is what the observer sent and the `icao` column is the
+conversion. Only the two rows that carry a converted unit move.
 
 Only the decoded rows follow the preset. **The raw METAR and TAF are always
 quoted verbatim**, so the reported figure is one line away if a conversion
@@ -156,6 +215,8 @@ support a band:
 One block per hour of the TAF validity period, coloured by the band that hour
 is forecast to be in.
 
+![The ENGM forecast strip. A row of amber hour blocks runs from 06 to 06, with a pink lower bar under the first three hours, two dimmed blocks in the middle, and five green blocks at the end. A caption reads: Lower bar, temporary deterioration possible](docs/images/strip-engm.png)
+
 A TAF is a baseline plus amendments, and the three amendment types behave
 differently:
 
@@ -171,6 +232,10 @@ understate it.
 
 Inside a `BECMG` window the worse of the two is shown and the block is
 dimmed, because either may be found there.
+
+Oslo above shows all three at once: a `TEMPO` in the first hours on the lower
+bar, a dimmed `BECMG` window in the middle, and the improvement to green that
+the `BECMG` brings once its window has passed.
 
 ## Where the data comes from
 
