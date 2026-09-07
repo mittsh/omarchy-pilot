@@ -32,7 +32,7 @@ to the same place.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `icao` | — | A 4-letter ICAO code, or `auto` for the nearest aerodrome |
+| `icao` | — | A 4-letter ICAO code, or `auto` for the nearest aerodrome. Unset shows a prompt and contacts nothing |
 | `refreshMinutes` | `10` | How often to fetch |
 | `rules` | `auto` | `auto`, `sera` or `faa`. See below |
 | `units` | `icao` | `icao`, `metric` or `us`. See below |
@@ -201,8 +201,14 @@ Regenerate it with `node dev/build-stations.js`. Monthly is plenty.
    no new service.
 3. `ipapi.co`, which locates you from your IP address.
 
-Only step 3 leaves your machine, and it runs only when you ask for `auto` and
-no code has been resolved yet. Set `lat` and `lon` to avoid it entirely.
+Only step 3 leaves your machine. It runs **only** when you have explicitly
+set `icao` to `auto`, and only until a code has been resolved — after which
+the code is written to your config and the lookup never repeats.
+
+**Leaving `icao` unset is not the same as `auto`.** An unset code shows a
+prompt and contacts no geolocation service at all, so enabling the widget
+without configuring it never locates you. Set `lat` and `lon` to use `auto`
+without any lookup.
 
 ## Development
 
@@ -225,6 +231,15 @@ tests are fast and deterministic.
 
 Design notes and the reasoning behind each decision are in
 [docs/PLAN.md](docs/PLAN.md).
+
+## Credits
+
+The panel's presentation follows [metar-taf.com](https://metar-taf.com/),
+reduced to what fits a status-bar popup: the conditions badge, the
+observation age as a first-class field, per-field colouring of visibility and
+ceiling, and the hour-by-hour forecast strip. Several strings are theirs
+verbatim, because they are hard to improve on — `10 km+`, `None`,
+`310° (270-360°)`.
 
 ## Licence
 

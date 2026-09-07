@@ -33,8 +33,13 @@ Panel {
   // A 4-letter code, or "auto" to take the nearest aerodrome. Resolving
   // "auto" writes the code it found back into this setting, so the lookup
   // happens once and the answer is visible and overridable.
+  //
+  // An UNSET code deliberately does NOT mean "auto". Finding the nearest
+  // aerodrome can reach a third-party geolocation service, and that must
+  // never happen to somebody who merely enabled the widget and has not asked
+  // for anything. Unset shows a prompt instead.
   readonly property string icaoSetting: String(root.setting("icao", "")).toUpperCase().trim()
-  readonly property bool wantsNearest: icaoSetting === "" || icaoSetting === "AUTO" || icaoSetting === "NEAREST"
+  readonly property bool wantsNearest: icaoSetting === "AUTO" || icaoSetting === "NEAREST"
   readonly property string icao: wantsNearest ? resolvedIcao : icaoSetting
   readonly property int refreshMinutes: Math.max(1, parseInt(root.setting("refreshMinutes", 10), 10) || 10)
   // "auto" follows the aerodrome's country. "sera" or "faa" forces one.
@@ -226,7 +231,10 @@ Panel {
 
   function refresh() {
     if (wantsNearest && resolvedIcao === "") { resolveNearest(); return }
-    if (icao.length !== 4) { errorText = "Set an ICAO code"; return }
+    if (icao.length !== 4) {
+      errorText = "Set an ICAO code, or set it to auto for the nearest"
+      return
+    }
     startSource(0)
   }
 
@@ -915,19 +923,31 @@ Panel {
               text: {
                 var parts = []
                 if (root.category && root.category.source) parts.push(root.category.source)
+                parts.push(Format.unitsFor(root.unitSet).name + " units")
                 var source = Sources.list()[root.sourceIndex]
                 // Naming the source only when it is a fallback keeps the
                 // normal case quiet but makes a degraded one obvious.
-                parts.push(Format.unitsFor(root.unitSet).name + " units")
                 if (root.sourceIndex > 0) parts.push("via " + source.name)
-                if (source.attribution) parts.push(source.attribution)
                 return parts.join(" · ")
               }
               color: root.fainter
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
+                            elide: Text.ElideRight
             }
+          }
+
+          // MET Norway's CC BY 4.0 credit is a licence obligation, so it gets
+          // its own wrapping line rather than sharing an eliding one, where
+          // it would be the first thing to disappear in a narrow panel.
+          Text {
+            width: parent.width
+            visible: text !== ""
+            text: Sources.list()[root.sourceIndex].attribution || ""
+            color: root.fainter
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.caption
+            wrapMode: Text.WordWrap
           }
         }
       }

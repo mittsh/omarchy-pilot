@@ -100,16 +100,20 @@ test("the country picks the rule set the regulator actually applies", () => {
 
 // ---------------------------------------------------------------- nearest
 
+// Published landmark coordinates, so the fixtures cite a place rather than
+// anybody's location.
+const TALLINN_TOWN_HALL = { lat: 59.4372, lon: 24.7453 }
+const SUVA_FIJI = { lat: -18.1416, lon: 178.4419 }
+
 test("nearest finds the aerodrome you are standing next to", () => {
-  // Tallinn city centre.
-  const found = S.nearest(59.437, 24.754, { limit: 1 })
+  const found = S.nearest(TALLINN_TOWN_HALL.lat, TALLINN_TOWN_HALL.lon, { limit: 1 })
   assert.equal(found.length, 1)
   assert.equal(found[0].station.icao, "EETN")
   assert.ok(found[0].distanceKm < 15, `expected under 15 km, got ${found[0].distanceKm}`)
 })
 
 test("nearest returns results in ascending distance", () => {
-  const found = S.nearest(59.437, 24.754, { limit: 5 })
+  const found = S.nearest(TALLINN_TOWN_HALL.lat, TALLINN_TOWN_HALL.lon, { limit: 5 })
   assert.equal(found.length, 5)
   for (let i = 1; i < found.length; i++) {
     assert.ok(found[i].distanceKm >= found[i - 1].distanceKm)
@@ -117,8 +121,9 @@ test("nearest returns results in ascending distance", () => {
 })
 
 test("requireTaf skips an aerodrome that issues no forecast", () => {
-  const all = S.nearest(59.437, 24.754, { limit: 20 })
-  const tafOnly = S.nearest(59.437, 24.754, { limit: 20, requireTaf: true })
+  const all = S.nearest(TALLINN_TOWN_HALL.lat, TALLINN_TOWN_HALL.lon, { limit: 20 })
+  const tafOnly = S.nearest(TALLINN_TOWN_HALL.lat, TALLINN_TOWN_HALL.lon,
+    { limit: 20, requireTaf: true })
   assert.ok(tafOnly.length <= all.length)
   for (const entry of tafOnly) assert.equal(entry.station.taf, true)
 })
@@ -145,8 +150,8 @@ test("distance matches a known great-circle figure", () => {
 })
 
 test("a position on the far side of the antimeridian still works", () => {
-  // Near Fiji. A naive longitude subtraction would look thousands of km out.
-  const found = S.nearest(-17.75, 177.45, { limit: 1, maxKm: 300 })
+  // Suva, Fiji. A naive longitude subtraction would look thousands of km out.
+  const found = S.nearest(SUVA_FIJI.lat, SUVA_FIJI.lon, { limit: 1, maxKm: 300 })
   assert.equal(found.length, 1)
   assert.ok(found[0].distanceKm < 300)
 })

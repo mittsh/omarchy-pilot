@@ -24,10 +24,10 @@ what fits a 500 x 600 px popup panel.
 | Fourth category | LIFR, the standard term |
 | TAF depth | Decoded, with an hour-by-hour timeline |
 | Placement | Beside the existing weather pill, not replacing it |
-| Repository | `~/Projects/omarchy-pilot`, independent of this machine |
+| Repository | Its own repository, independent of any one machine |
 | Plugin id | `pilot.metar` |
 | Licence | MIT |
-| Publishing | Local only until it works |
+| Publishing | Public, MIT, under github.com/mittsh |
 
 ---
 
@@ -543,7 +543,7 @@ All are handled and tested.
 | 6 | `Taf.js` and tests | **Done.** 20 tests. 38 live TAFs, no failures |
 | 7 | Timeline strip | **Done.** One block per hour, TEMPO on its own channel |
 | 8 | ICAO field, nearest lookup, fallbacks | **Done.** All three live-verified |
-| 9 | README | **Done.** First push still to do |
+| 9 | README and first push | **Done** |
 | 10 | Wording and unit presets | **Done.** Live-verified in all three |
 
 Phases 1, 2, 3 and 6 need no running shell.
@@ -551,7 +551,7 @@ Phases 1, 2, 3 and 6 need no running shell.
 ### Testing
 
 There is no plugin test harness in Omarchy. The pattern comes from the
-`b.omadoro` plugin already on this machine: plain `node` with
+third-party Omarchy plugin `b.omadoro`: plain `node` with
 `node:assert/strict`, no framework, plus `omarchy plugin validate`, plus a
 runtime smoke test that boots a throwaway Quickshell in a temporary `HOME`
 and asserts over IPC.
@@ -561,15 +561,15 @@ That technique extends to theme testing, with one correction:
 `XDG_STATE_HOME`**. Stage a test theme at
 `$test_home/.local/state/omarchy/current/theme`.
 
-`qmllint` is not installed on this machine, so that stage will skip.
+The `qmllint` stage skips itself where the tool is not installed.
 
 ---
 
 ## 11. Open questions
 
-1. **Whether to publish.** The repository is local until you are happy with
-   it. Nothing is pushed and there is no remote.
-2. **A second aerodrome.** The scope is deliberately one. Supporting a
+1. **A second aerodrome.** The scope is deliberately one. Supporting a
    destination as well as a departure would need a second pill or a switcher,
    and one repository ships one plugin id.
-3. **`qmllint` is not installed**, so that test stage always skips.
+2. **Aerodrome name quality.** The bundled table fixes the worst of it, but a
+   handful of stations have no OurAirports match and keep the weather API's
+   abbreviated name.
