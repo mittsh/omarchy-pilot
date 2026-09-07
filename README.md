@@ -1,5 +1,7 @@
 # Omarchy Pilot
 
+![Omarchy Pilot — METAR and TAF in the Omarchy status bar, showing the European SERA bands VMC, SVFR and IMC alongside the FAA bands VFR, MVFR, IFR and LIFR, with four live aerodrome panels](docs/images/hero.png)
+
 Aviation weather for the [Omarchy](https://omarchy.org/) status bar. One
 aerodrome: its METAR, its TAF, and a conditions band.
 
@@ -48,18 +50,30 @@ omarchy plugin add https://github.com/mittsh/omarchy-pilot.git --enable
 Then pick an aerodrome, or let it find the nearest one:
 
 ```bash
-omarchy bar set pilot.metar icao EETN    # a specific aerodrome
-omarchy bar set pilot.metar icao auto    # the nearest one
+omarchy bar set mittsh.omarchy-pilot icao EETN    # a specific aerodrome
+omarchy bar set mittsh.omarchy-pilot icao auto    # the nearest one
 ```
 
 `auto` resolves once and writes the code it found back into your config, so
 the lookup never repeats and you can see and change what it chose.
 
-Update it later with `omarchy plugin update pilot.metar`.
+## Update and removal
+
+```bash
+omarchy plugin update mittsh.omarchy-pilot     # pull the latest version
+omarchy plugin remove mittsh.omarchy-pilot     # uninstall it completely
+```
+
+Removing the plugin takes it off the bar and deletes
+`~/.config/omarchy/plugins/mittsh.omarchy-pilot/`. Your settings live in the widget's
+entry in `~/.config/omarchy/shell.json`, which Omarchy tidies up with it.
+
+The plugin writes nothing outside those two places, keeps no cache and no
+state file, and installs nothing system-wide.
 
 ## Settings
 
-Set with `omarchy bar set pilot.metar <key> <value>`, or edit the widget's
+Set with `omarchy bar set mittsh.omarchy-pilot <key> <value>`, or edit the widget's
 entry in `~/.config/omarchy/shell.json`. The ICAO field in the panel writes
 to the same place.
 
@@ -122,7 +136,7 @@ the terms European regulation actually uses, and are the default. **VFR** and
 **IFR** are what most pilots say out loud.
 
 ```bash
-omarchy bar set pilot.metar labels vfr
+omarchy bar set mittsh.omarchy-pilot labels vfr
 ```
 
 | `labels` | Good | Marginal | Bad |
@@ -141,7 +155,7 @@ the spoken terms.
 ## Units
 
 ```bash
-omarchy bar set pilot.metar units metric
+omarchy bar set mittsh.omarchy-pilot units metric
 ```
 
 | Preset | Wind | Visibility | Pressure | Temperature | Cloud height |

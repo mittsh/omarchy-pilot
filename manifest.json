@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "id": "pilot.metar",
+  "id": "mittsh.omarchy-pilot",
   "name": "Omarchy Pilot",
   "version": "0.1.0",
   "author": "Micha Mazaheri",

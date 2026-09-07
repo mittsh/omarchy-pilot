@@ -1,0 +1,88 @@
+<!-- Source for docs/images/hero.png. Regenerate with:
+     chromium --headless --disable-gpu --hide-scrollbars \
+       --window-size=1600,1000 --screenshot=hero.png dev/hero.html -->
+<!doctype html><html><head><meta charset="utf-8"><style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#12131a; --panel:#171922; --line:rgba(255,255,255,.10);
+  --fg:#c8cddb; --dim:#7b8296; --faint:#4d5464;
+  --green:#9ece6a; --amber:#e0af68; --red:#f7768e; --blue:#7aa2f7; --magenta:#ad8ee6;
+}
+body { width:1600px; height:1000px; background:var(--bg); color:var(--fg);
+  font-family:"JetBrainsMono Nerd Font","JetBrains Mono",monospace;
+  display:grid; grid-template-columns:640px 1fr; gap:64px; padding:72px 64px; }
+.eyebrow { color:var(--green); font-size:15px; letter-spacing:.42em; margin-bottom:34px; font-weight:500; }
+h1 { font-size:62px; line-height:1.06; font-weight:700; letter-spacing:-.02em; margin-bottom:26px; }
+h1 .g { color:var(--green); }
+.lede { font-size:19px; line-height:1.62; color:var(--dim); margin-bottom:38px; max-width:560px; }
+.lede b { color:var(--fg); font-weight:500; }
+.setlabel { font-size:12px; letter-spacing:.2em; color:var(--faint); margin-bottom:11px; }
+.chips { display:flex; gap:11px; margin-bottom:22px; }
+.chip { border:1px solid; border-radius:7px; padding:9px 0; text-align:center; min-width:96px; }
+.chip .b { font-size:17px; font-weight:700; letter-spacing:.04em; }
+.chip .t { font-size:10.5px; color:var(--faint); margin-top:3px; }
+.vmc,.vfr { border-color:rgba(158,206,106,.45); } .vmc .b,.vfr .b { color:var(--green); }
+.svfr { border-color:rgba(224,175,104,.45); } .svfr .b { color:var(--amber); }
+.imc,.ifr { border-color:rgba(247,118,142,.45); } .imc .b,.ifr .b { color:var(--red); }
+.mvfr { border-color:rgba(122,162,247,.45); } .mvfr .b { color:var(--blue); }
+.lifr { border-color:rgba(173,142,230,.45); } .lifr .b { color:var(--magenta); }
+ul { list-style:none; margin:34px 0 32px; }
+li { font-size:16px; line-height:1.5; color:var(--dim); margin-bottom:15px; padding-left:24px; position:relative; }
+li::before { content:"▸"; position:absolute; left:0; color:var(--green); }
+li b { color:var(--fg); font-weight:600; }
+.cmd { background:var(--panel); border:1px solid var(--line); border-radius:9px;
+  padding:16px 20px; font-size:15px; color:var(--dim); }
+.cmd .p { color:var(--faint); } .cmd .u { color:var(--green); }
+.grid { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:auto auto;
+  gap:26px 24px; align-content:start; }
+.shot { position:relative; }
+.shot .frame { border:1px solid var(--line); border-radius:9px; overflow:hidden; position:relative; }
+.shot img { width:100%; display:block; }
+.shot .frame::after { content:""; position:absolute; left:0; right:0; bottom:0; height:74px;
+  background:linear-gradient(to bottom, rgba(18,19,26,0), var(--bg)); pointer-events:none; }
+.cap { margin-top:12px; font-size:12.5px; color:var(--dim); white-space:nowrap; }
+.cap b { letter-spacing:.16em; font-size:11px; font-weight:600; }
+.cap .g{color:var(--green)} .cap .a{color:var(--amber)} .cap .r{color:var(--red)} .cap .bl{color:var(--blue)}
+.tall .frame { height:376px; }
+.tall img { height:auto; }
+</style></head><body>
+<div>
+  <div class="eyebrow">✈ OMARCHY PILOT</div>
+  <h1>Same sky.<br><span class="g">Different rules.</span></h1>
+  <p class="lede">METAR and TAF in your status bar, banded by the regulator that
+  <b>actually applies</b> — SERA in Europe, FAA everywhere else.</p>
+
+  <div class="setlabel">EUROPE · SERA</div>
+  <div class="chips">
+    <div class="chip vmc"><div class="b">VMC</div><div class="t">1500ft &amp; 5km</div></div>
+    <div class="chip svfr"><div class="b">SVFR</div><div class="t">600ft &amp; 1500m</div></div>
+    <div class="chip imc"><div class="b">IMC</div><div class="t">below that</div></div>
+  </div>
+  <div class="setlabel">ELSEWHERE · FAA</div>
+  <div class="chips">
+    <div class="chip vfr"><div class="b">VFR</div><div class="t">&gt;3000 &amp; &gt;5</div></div>
+    <div class="chip mvfr"><div class="b">MVFR</div><div class="t">1000-3000</div></div>
+    <div class="chip ifr"><div class="b">IFR</div><div class="t">500-999</div></div>
+    <div class="chip lifr"><div class="b">LIFR</div><div class="t">&lt;500</div></div>
+  </div>
+
+  <ul>
+    <li><b>Europe gets European bands.</b> From SERA.5005(b) and SERA.5010(c) — not a US convention relabelled</li>
+    <li><b>The forecast as an hourly strip</b>, with TEMPO on its own channel so it is never painted as the forecast</li>
+    <li><b>Finds its own aerodrome.</b> No API key, no account, three sources so one outage cannot blank it</li>
+  </ul>
+
+  <div class="cmd"><span class="p">$</span> omarchy plugin add <span class="u">github.com/mittsh/omarchy-pilot</span></div>
+</div>
+
+<div class="grid">
+  <div class="shot tall"><div class="frame"><img src="../docs/images/panel-eetn.png" alt=""></div>
+    <div class="cap"><b class="g">VMC</b> &nbsp;Tallinn — CAVOK, and the forecast strip</div></div>
+  <div class="shot tall"><div class="frame"><img src="../docs/images/panel-engm.png" alt=""></div>
+    <div class="cap"><b class="a">SVFR</b> &nbsp;Oslo — the 900 ft ceiling is what binds</div></div>
+  <div class="shot tall"><div class="frame"><img src="../docs/images/panel-rjaa.png" alt=""></div>
+    <div class="cap"><b class="r">IFR</b> &nbsp;Narita — rain and mist, 4 km, 700 ft</div></div>
+  <div class="shot tall"><div class="frame"><img src="../docs/images/panel-ksfo.png" alt=""></div>
+    <div class="cap"><b class="bl">FAA</b> &nbsp;San Francisco — banded by AIM 7-1-7</div></div>
+</div>
+</body></html>

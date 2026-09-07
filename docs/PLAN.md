@@ -25,7 +25,7 @@ what fits a 500 x 600 px popup panel.
 | TAF depth | Decoded, with an hour-by-hour timeline |
 | Placement | Beside the existing weather pill, not replacing it |
 | Repository | Its own repository, independent of any one machine |
-| Plugin id | `pilot.metar` |
+| Plugin id | `mittsh.omarchy-pilot` |
 | Licence | MIT |
 | Publishing | Public, MIT, under github.com/mittsh |
 
@@ -61,7 +61,7 @@ from git gets updates with no extra tooling.
 
 ```bash
 omarchy plugin add https://github.com/mittsh/omarchy-pilot.git --enable
-omarchy bar set pilot.metar icao EETN
+omarchy bar set mittsh.omarchy-pilot icao EETN
 ```
 
 ### Development
@@ -412,7 +412,7 @@ exists. A plugin cannot declare its own form.
 So the ICAO code is set two ways, both writing the same place:
 
 ```bash
-omarchy bar set pilot.metar icao EETN
+omarchy bar set mittsh.omarchy-pilot icao EETN
 ```
 
 and a text field inside the panel, saved with

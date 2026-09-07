@@ -22,13 +22,13 @@ import "Theme.js" as Theme
 
 Panel {
   id: root
-  moduleName: "pilot.metar"
-  ipcTarget: "pilot.metar"
+  moduleName: "mittsh.omarchy-pilot"
+  ipcTarget: "mittsh.omarchy-pilot"
   manageIpc: false
 
   // ------------------------------------------------------------- settings
 
-  // Set with `omarchy bar set pilot.metar icao EETN`, or from the field in
+  // Set with `omarchy bar set mittsh.omarchy-pilot icao EETN`, or from the field in
   // the panel. Both write the same entry in shell.json.
   // A 4-letter code, or "auto" to take the nearest aerodrome. Resolving
   // "auto" writes the code it found back into this setting, so the lookup
